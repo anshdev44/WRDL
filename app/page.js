@@ -1,6 +1,7 @@
 import React from "react";
 import TextType from "./TextType";
 import Nav from "./components/nav";
+import Rules from "./components/rules";
 
 //main landing page
 const page = () => {
@@ -40,6 +41,9 @@ const page = () => {
           </div>
         </div>
       </div>
+      {/* rules Section */}
+      <div className="mt-[20%]"></div>
+     <Rules />
     </div>
   );
 };
