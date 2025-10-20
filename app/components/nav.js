@@ -2,16 +2,23 @@
 import React from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from "next/link";
+// import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
 const Nav = () => {
+    const router = useRouter();
     const { data: session } = useSession();
+    const signInHandler = async () => {
+        await signOut({redirect: false});
+        router.push('/login');
+    }
 
     // --- Tailwind Classes for common button styles ---
     const navItemClasses = 'cursor-pointer hover:bg-gray-700/50 rounded-full p-2.5 transition-colors duration-200';
 
     return (
         <div className='flex mt-10 justify-center'>
-            <div className='rounded-full border  w-[80%] h-25 flex justify-between items-center p-5'>
+            <div className='rounded-full   w-[80%] h-25 flex justify-between items-center p-5'>
 
                 {/* Logo Area */}
                 <div>
@@ -47,8 +54,8 @@ const Nav = () => {
 
                                 {/* 2. The Hidden Sign Out Button (Revealed on Group Hover) */}
                                 <button
-                                    onClick={() => signOut()}
-                                    className='absolute right-0 translate-x-[calc(100%+1rem)] sm:relative sm:translate-x-0 
+                                    onClick={() => {signInHandler()}} 
+                                    className=' cursor-pointer absolute right-0 translate-x-[calc(100%+1rem)] sm:relative sm:translate-x-0 
                                                bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full
                                                opacity-0 group-hover:opacity-100 sm:group-hover:opacity-100 
                                                w-auto transition-all duration-300 ease-in-out'

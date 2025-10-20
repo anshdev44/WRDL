@@ -2,12 +2,41 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { useSession, signIn, signOut } from "next-auth/react";
-
-
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { saveprofile } from "../action/interaction";
+// import { save } from "../api/saveuser";
 
 
 const Page = () => {
   const { data: session } = useSession();
+  const [email, setemail] = useState("");
+  const [pass, setpass] = useState("");
+  const router = useRouter();
+  if (session) {
+    router.push("/");
+  }
+
+  const submitHandler = async (email,pass) => {
+      // e.preventDefault();
+      const res=await saveprofile({email:email,pass:pass});
+      if(res.error){
+        alert(`Error: ${res.error}`);
+      }
+      else{
+        alert("login ho gya");
+        router.push("/");
+      }
+ 
+  }
+
+  const handleChangeemail = (e) => {
+    setemail(e.target.value);
+  }
+  const handleChangepass = (e) => {
+    setpass(e.target.value);
+  }
+
   return (
     <>
       <div className="flex justify-center items-center min-h-screen bg-[#0B0B0B] text-white">
@@ -24,7 +53,9 @@ const Page = () => {
           <div className="space-y-5">
             {/* GitHub Login */}
             <button
-              onClick={()=>{signIn("github")}}
+              onClick={() => {
+                signIn("github");
+              }}
               className="cursor-pointer w-full flex items-center justify-center gap-3 bg-[#1B1B1B] border border-[#333] text-white py-2.5 px-4 rounded-lg hover:border-[#555] hover:bg-[#222] transition-all duration-300"
             >
               <svg
@@ -42,7 +73,9 @@ const Page = () => {
               Continue with GitHub
             </button>
             <button
-              onClick={()=>{signIn("google")}}
+              onClick={() => {
+                signIn("google");
+              }}
               className="cursor-pointer w-full flex items-center justify-center gap-3 bg-[#1B1B1B] border border-[#333] text-white py-2.5 px-4 rounded-lg hover:border-[#555] hover:bg-[#222] transition-all duration-300"
             >
               <svg
@@ -81,10 +114,13 @@ const Page = () => {
               <div className="flex-1 border-t border-gray-700/50"></div>
             </div>
 
-            {/* Email */}
+            {/* email */}
+
             <input
               type="email"
               placeholder="Email"
+              value={email}
+              onChange={handleChangeemail}
               className="w-full px-4 py-2.5 rounded-lg bg-[#181818] placeholder-gray-400 text-white border border-[#2a2a2a] focus:ring-1 focus:ring-purple-500 outline-none transition-all duration-200"
             />
 
@@ -92,11 +128,12 @@ const Page = () => {
             <input
               type="password"
               placeholder="Password"
+              onChange={handleChangepass}
               className="w-full px-4 py-2.5 rounded-lg bg-[#181818] placeholder-gray-400 text-white border border-[#2a2a2a] focus:ring-1 focus:ring-purple-500 outline-none transition-all duration-200"
             />
 
             {/* Sign In */}
-            <button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2.5 rounded-lg font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-all duration-300">
+            <button onClick={()=>{submitHandler(email,pass)}} className=" cursor-pointer w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2.5 rounded-lg font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-all duration-300">
               Sign In
             </button>
             <div className="flex justify-center">
