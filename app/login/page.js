@@ -5,6 +5,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { saveprofile } from "../action/interaction";
+import { ToastContainer, toast } from 'react-toastify';
 // import { save } from "../api/saveuser";
 
 
@@ -12,22 +13,36 @@ const Page = () => {
   const { data: session } = useSession();
   const [email, setemail] = useState("");
   const [pass, setpass] = useState("");
+  const [setsessionEmail, setSetsessionEmail] = useState("")
+  const [checksession, setChecksession] = useState(false);
   const router = useRouter();
   if (session) {
     router.push("/");
+    toast.info("You are already logged in!");
   }
 
-  const submitHandler = async (email,pass) => {
-      // e.preventDefault();
-      const res=await saveprofile({email:email,pass:pass});
-      if(res.error){
-        alert(`Error: ${res.error}`);
+  const submitHandler = async (email, pass) => {
+    // e.preventDefault();
+    const res = await saveprofile({ email: email, pass: pass });
+    if (res.error) {
+      if (res.status === 401) {
+        // alert("Incorrect Password");
+        toast.error("Incorrect Password");
+        console.log("Incorrect Password");
+        setpass("");
       }
-      else{
-        alert("login ho gya");
-        router.push("/");
+      else {
+        // alert("Some error occurred");
+        toast("Some error occurred");
       }
- 
+    }
+    else {
+      setChecksession(true);
+      // alert("login ho gya");
+      toast.info("Login Successful");
+      router.push("/");
+    }
+
   }
 
   const handleChangeemail = (e) => {
@@ -133,7 +148,7 @@ const Page = () => {
             />
 
             {/* Sign In */}
-            <button onClick={()=>{submitHandler(email,pass)}} className=" cursor-pointer w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2.5 rounded-lg font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-all duration-300">
+            <button onClick={() => { submitHandler(email, pass) }} className=" cursor-pointer w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2.5 rounded-lg font-semibold hover:shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-all duration-300">
               Sign In
             </button>
             <div className="flex justify-center">
@@ -147,6 +162,7 @@ const Page = () => {
           </div>
         </motion.div>
       </div>
+       <ToastContainer />
     </>
   );
 };

@@ -43,7 +43,7 @@ const page = () => {
       </div>
       {/* rules Section */}
       <div className="mt-[20%]"></div>
-     <Rules />
+     {/* <Rules /> */}
     </div>
   );
 };

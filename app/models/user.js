@@ -6,6 +6,7 @@ const UserSchema = new Schema({
     email: { type: String, required: true },
     username: { type: String, required: true },
     profilepic: { type: String },
+    pass: { type: String },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
 });

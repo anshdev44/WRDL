@@ -2,6 +2,8 @@
 import React from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from "next/link";
+
+
 // import { useRouter } from 'next/router';
 import { useRouter } from 'next/navigation';
 
@@ -40,7 +42,7 @@ const Nav = () => {
                             // *** START: The Hover Container ***
                             <div className='relative flex items-center group'>
 
-                                {/* 1. The Main Hover Area (Avatar and Email) */}
+                                <Link href={`/${session.user.name}`}>
                                 <div className='flex justify-center items-center gap-4 p-2 cursor-pointer rounded-full transition-colors duration-200'>
                                     <div className='rounded-full border border-blue-400 p-0.5'>
                                         <img
@@ -51,6 +53,7 @@ const Nav = () => {
                                     </div>
                                     <span className='hidden sm:block text-blue-300 font-semibold'>{session.user.email}</span>
                                 </div>
+                                </Link>
 
                                 {/* 2. The Hidden Sign Out Button (Revealed on Group Hover) */}
                                 <button
