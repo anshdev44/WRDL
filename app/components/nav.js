@@ -5,26 +5,50 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchprofilepic } from "../action/interaction";
 import { useEffect, useState } from "react";
+import { fetchuser } from "../action/interaction";
 
 const Nav = () => {
   const router = useRouter();
   const [profile, setprofile] = useState("");
+  const [username, setusername] = useState("");
   const { data: session } = useSession();
+
 
   const signInHandler = async () => {
     await signOut({ redirect: false });
     router.push("/login");
   };
 
-  // Use a synchronous effect and don't call server-only functions from client components.
   useEffect(() => {
-    
-  }, [session]);
+   async function getusername(){
+    const res=await fetchuser(session.user.email);
+    if(res.status===200){
+     setusername(res.user.username);
+    }
+    else{
+      setusername("User");
+    }
+   }
+   getusername();
+  }, [session])
+  
 
-
+  useEffect(() => {
+   async function getprofilepic(){
+    const res=await fetchprofilepic(session.user.email);
+    if(res.status===200){
+      setprofile(res.profilepic);
+    }
+    else {
+      setprofile("https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg")
+    }
+   }
+   getprofilepic();
+  }, [])
+  
 
   const navItemClasses =
-    "cursor-pointer hover:bg-gray-700/50 rounded-full p-2.5 transition-colors duration-200";
+    "cursor-pointer hover:bg-gray-700/50 rounded-full p-3.5 transition-colors duration-200";
 
   return (
     <div
@@ -39,11 +63,11 @@ const Nav = () => {
 
         {/* Navigation */}
         <ul className="flex gap-6 sm:gap-10 text-white text-lg items-center">
-          <li className={navItemClasses}>Home</li>
-          <li className={navItemClasses}>Rules</li>
+          <Link href="/"><li className={navItemClasses}>Home</li></Link>
+          <Link href="/about"><li className={navItemClasses}>About</li></Link>
 
           {session ? (
-            <div className="relative flex items-center group">
+            <div className="relative flex items-center group gap-1">
               <Link href={`/${session.user.name}`}>
                 <div className="flex items-center gap-3 cursor-pointer rounded-full transition-colors duration-200">
                   <div className="rounded-full border border-blue-400 p-0.5">
@@ -54,14 +78,14 @@ const Nav = () => {
                     />
                   </div>
                   <span className="hidden sm:block text-blue-300 font-semibold">
-                    {session.user.email}
+                    {username}
                   </span>
                 </div>
               </Link>
 
               <button
                 onClick={signInHandler}
-                className="absolute right-0 translate-x-[calc(100%+1rem)] sm:relative sm:translate-x-0 
+                className="cursor-pointer absolute right-0 translate-x-[calc(100%+1rem)] sm:relative sm:translate-x-0 
                           bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full
                           opacity-0 group-hover:opacity-100 sm:group-hover:opacity-100 
                           transition-all duration-300 ease-in-out"

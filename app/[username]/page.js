@@ -147,7 +147,7 @@ export default function Page({ params }) {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handlesubmit}
-            className="mt-6 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all duration-200"
+            className="cursor-pointer mt-6 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all duration-200"
           >
             Save Changes
           </motion.button>
