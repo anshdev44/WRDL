@@ -16,7 +16,7 @@ export const saveprofile = async (data) => {
         }
     }
 
-    // create and return a plain object
+   
     const created = await User.create({
         email: data.email,
         username: data.email.split("@")[0],
@@ -31,6 +31,8 @@ export const saveprofile = async (data) => {
     return { message: "User created successfully", status: 201, user: createdObj };
 }
 
+
+// used for checking if user exsists befor going to profile page
 export const check = async (email) => {
     await connectDB();
     const currentuser = await User.findOne({ email }).lean();
@@ -47,12 +49,56 @@ export const fetchuser = async (email) => {
     const currentuser = await User.findOne({ email }).lean();
 
     if (currentuser) {
-        // log on server (this will appear in your terminal running Next)
         console.log("fetchuser: found user ->", currentuser);
-        // ensure id is a string when sending to client
+
         currentuser._id = String(currentuser._id);
         return { message: "user data found", status: 200, user: currentuser };
     } else {
         return { error: "user cannot be found", status: 404 };
     }
 };
+
+export const updateuser=async (data)=>{
+    await connectDB();
+    const currentuser = await User.findOne({ email: data.email }).lean();
+
+    if(currentuser){
+        const checkusername=await User.findOne({email:data.email,username:data.username});
+        if(checkusername){
+          const checkusernameandemailaresame=await User.findOne({email:data.email,username:data.username});
+          if(!checkusernameandemailaresame){
+            return {error:"username already exsits",status:409};
+          }
+          else{
+            await User.updateOne({email:data.email}),{
+                $set:{
+                    profilepic:data.profilepic,
+                    updatedAt:new Date(),
+                }
+            }
+          }
+        }
+        const updateuser=await User.updateOne({email:data.email},{
+            $set:{
+                username:data.username,
+                profilepic:data.profilepic,
+                updatedAt:new Date(),
+            }
+        });
+        return {message:"user updated successfully",status:200};
+    }
+    else {
+        return {error:"user does not exsits",status:404}
+    }
+}
+
+export const fetchprofilepic =async (email)=>{
+    await connectDB();
+    const currentuser = await User.findOne({ email }).lean();   
+    if (currentuser) {
+        return { message: "profile pic fetched", status: 200, profilepic: currentuser.profilepic };
+    }
+    else {
+        return { error: "user does not exsits", status: 404 }
+    }
+}
