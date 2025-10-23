@@ -6,9 +6,9 @@ import { useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { ToastContainer, toast } from "react-toastify";
 import { useRouter } from "next/navigation";
-import { joinroom } from "./action/interaction";
 import { useEffect } from "react";
 import { fetchuser } from "./action/interaction";
+import { createRandomString } from "./action/room";
 
 const Page = () => {
   const [joinroom, setJoinroom] = useState(false);
@@ -32,32 +32,17 @@ const Page = () => {
   }, [session]);
   
 
-  const handleJoinGame = () => {
-    if (!session) {
-      toast.info("Please Login First to join a room");
-      router.push("/login");
-    } else {
-      const res=joinroom(roomid,username);
-      if(res.status===404){
-        toast.error("Room Not found");
-        setRoomid("");
-      }
-      if(res.status===403){
-        toast.error("Room is Full");
-        setRoomid("");
-      }
-      if(res.status===402){
-        toast.info("You are already in the room");
-      }
-      if(res.status===405){
-       toast.error("Game Does not allow joining now");
-       setRoomid("");
-      }
-      if(res.status===200){
-        toast.success("Room Joined");
-      }
+  const HandleCreateRoom=async ()=>{
+    if(!session){
+      toast.info("Please Login FIrst Before creating a room");
     }
-  };
+    else{
+      let room=await createRandomString(username);
+      setRoomid(room);
+      // console.log("Created room id:",room);
+      router.push(`/game/${room}`);
+    }
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
@@ -92,7 +77,9 @@ const Page = () => {
 
           {/* Buttons */}
           <div className="flex justify-center gap-16 mt-8">
-            <button className="bg-gradient-to-r from-purple-700 to-blue-600 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_25px_#6D28D9]">
+            <button 
+            onClick={()=>{HandleCreateRoom()}}
+            className="bg-gradient-to-r from-purple-700 to-blue-600 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_25px_#6D28D9]">
               Create Room
             </button>
 

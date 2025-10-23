@@ -1,22 +1,39 @@
+"use server"
 import Room from "../models/room";
 import connectDB from "../db/connect";
 
-export const joinroom =async (roomID,playerID)=>{
- await connectDB();
- const checkroom=await Room.findOne({roomID:roomID}).lean();
- if(checkroom){
-   if(checkroom.players.length>=4){
-    return {error:"Room is Full",status:403};
-   }
-   if(checkroom.players.includes(playerID)){
-    return {message:"PLayer already in room",status:402}
-   }
-   if(checkroom.status==="in-progress" || checkroom.status==="ended"){
-    return {error:"Game already started",status:405};
-   }
-   return {message:"Room Found",status:200,room:checkroom};
- }
- else{
-    return {error:"Room Not Found",status:404};
- }
+
+export const  createRandomString=async (username)=> {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const length = 6;
+  await connectDB();
+  for (let j = 0; j < 1000; j++) {
+    let roomID = "";
+    for (let i = 0; i < length; i++) {
+      roomID += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const existingroom = await Room.findOne({ roomID: roomID });
+    if (!existingroom) {
+      await Room.create({ roomID: roomID, players: [username] });
+      console.log("Room id",roomID);
+      return roomID;
+    }
+  }
+ return null;
+}
+
+
+//increment player count
+export const incrementplayercount=async(roomID)=>{
+  await connectDB();
+  const room=await Room.find({roomID:roomID});
+  if(room){
+    room.playercount+=1;
+    await room.save();
+    return {message:"Player count incremented",status:200};
+  }
+  else{
+    return {error:"Room not found",status:404};
+  }
+
 }

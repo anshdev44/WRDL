@@ -49,7 +49,7 @@ export const fetchuser = async (email) => {
     const currentuser = await User.findOne({ email }).lean();
 
     if (currentuser) {
-        console.log("fetchuser: found user ->", currentuser);
+        // console.log("fetchuser: found user ->", currentuser);
 
         currentuser._id = String(currentuser._id);
         return { message: "user data found", status: 200, user: currentuser };
