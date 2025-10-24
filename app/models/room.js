@@ -6,12 +6,19 @@ const RoomSchema = new Schema({
     roomID: {
         type: String,
         required: true,
-        unique: true 
+        unique: true
     },
     players: {
-        type: Array,
+        type: [
+            {
+                username: { type: String, required: true },
+                profilepic: { type: String  },
+                score: { type: Number, default: 0 },
+                email: { type: String, required: true },
+                role: { type: String, default: "player" }
+            }
+        ],
         default: [],
-        required: true 
     },
     status: {
         type: String,

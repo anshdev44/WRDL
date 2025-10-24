@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { fetchuser } from "./action/interaction";
 import { createRandomString } from "./action/room";
+import { handlejoinroombackend } from "./action/room";
 
 const Page = () => {
   const [joinroom, setJoinroom] = useState(false);
@@ -17,32 +18,50 @@ const Page = () => {
   const [roomid, setRoomid] = useState("");
   const { data: session } = useSession();
 
-  const toggleJoinRoom = () => {
-    setJoinroom((prev) => !prev);
-  };
+  const tooglejonroom=()=>{
+    setJoinroom(prev=>!prev);
+  }
+
+  const handlejoinroom = () => {
+    async function join() {
+      const res= await handlejoinroombackend(roomid,session.user?.email,username);
+      if(res.status===200){
+        router.push(`/game/${roomid}`);
+        toast.info(res.message);
+      }
+      else{
+        toast.error(res.error);
+      }
+    }
+    join();
+  }
+
+
 
   useEffect(() => {
-    async function getusername(){
-     const res=await fetchuser(session.user.email);
-     if(res.status===200){
-      setUsername(res.user.username);
-     }
+    async function getusername() {
+      const res = await fetchuser(session.user.email);
+      if (res.status === 200) {
+        setUsername(res.user.username);
+      }
     }
     getusername();
   }, [session]);
-  
 
-  const HandleCreateRoom=async ()=>{
-    if(!session){
+  const HandleCreateRoom = async () => {
+    if (!session) {
       toast.info("Please Login FIrst Before creating a room");
+    } else {
+      let room = await createRandomString(session.user?.email, username);
+      if (!room) {
+        toast.info("servers are busy try again later");
+      } else {
+        setRoomid(room);
+        // console.log("Created room id:",room);
+        router.push(`/game/${room}`);
+      }
     }
-    else{
-      let room=await createRandomString(username);
-      setRoomid(room);
-      // console.log("Created room id:",room);
-      router.push(`/game/${room}`);
-    }
-  }
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
@@ -77,14 +96,17 @@ const Page = () => {
 
           {/* Buttons */}
           <div className="flex justify-center gap-16 mt-8">
-            <button 
-            onClick={()=>{HandleCreateRoom()}}
-            className="bg-gradient-to-r from-purple-700 to-blue-600 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_25px_#6D28D9]">
+            <button
+              onClick={() => {
+                HandleCreateRoom();
+              }}
+              className="bg-gradient-to-r from-purple-700 to-blue-600 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_25px_#6D28D9]"
+            >
               Create Room
             </button>
 
             <button
-              onClick={toggleJoinRoom}
+              onClick={()=>{tooglejonroom()}}
               className="bg-gradient-to-r from-blue-700 to-purple-600 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_25px_#2563EB]"
             >
               Join Room
@@ -113,7 +135,7 @@ const Page = () => {
 
                 <button
                   onClick={() => {
-                    handleJoinGame();
+                    handlejoinroom();
                   }}
                   className="
                                         cursor-pointer px-6 py-3 rounded-xl text-lg font-bold

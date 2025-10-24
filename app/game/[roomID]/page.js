@@ -1,11 +1,29 @@
-"use client"
+"use client";
 import React from "react";
 import { useState } from "react";
 // import logo from '../../../public/logo.jpg'
+import { useSession } from "next-auth/react";
 import Nav from "@/app/components/nav";
+import { useEffect } from "react";
+import { getroomdata } from "@/app/action/room";
 
 const page = ({ params }) => {
-  const [setstartgame, setSetstartgame] = useState(false);
+  // const [setstartgame, setSetstartgame] = useState(false);
+  const { data: session } = useSession();
+  const [players, setPlayers] = useState([]);
+  useEffect(() => {
+    async function getroom() {
+      const res = await getroomdata(params.roomID);
+      if (res.status === 200) {
+        setPlayers(res.room.players);
+        console.log("Room data:", res.room);
+      } else {
+        console.log("Room not found");
+      }
+    }
+    getroom();
+  }, [session]);
+
   return (
     <>
       <Nav />
@@ -18,20 +36,31 @@ const page = ({ params }) => {
             <img className="w-50" src="/logo.png" alt="" />
           </div>
         </div>
-        <div className="rounded-3xl border w-[80vw] h-[80vh] flex">
+        <div className="rounded-3xl  w-[80vw] h-[80vh] flex">
           {/* left section */}
           <div className="w-1/4 h-[100%] border rounded-3xl">
             {/*left upper*/}
             <div className="border rounded-3xl h-1/2">
-              {/* players list */}
-              <ul className="flex flex-col h-full justify-evenly">
-                <li className="border rounded-3xl h-1/4 flex items-center justify-center"></li>
-                <li className="border rounded-3xl h-1/4 flex items-center justify-center"></li>
-                <li className="border rounded-3xl h-1/4 flex items-center justify-center"></li>
-                <li className="border rounded-3xl h-1/4 flex items-center justify-center"></li>
+              <ul className="flex flex-col h-full justify-start gap-2 p-3 overflow-y-auto">
+                {players.map((player, index) => (
+                <li key={index} className="border rounded-3xl flex items-center justify-between p-3">
+                  <div className="flex items-center gap-3">
+                    <img
+                      className="w-12 h-12 rounded-full object-cover"
+                      src={player.profilepic}
+                      alt="player avatar"
+                    />
+                    {console.log("Profile Pic",player.profilepic)}
+                    <div>
+                      <h2 className="font-semibold">{player.username || "Player"}</h2>
+                      <p className="text-sm text-gray-500">{player.role || ""}</p>
+                    </div>
+                  </div>
+                  <div className="text-right font-bold">{player.points ?? 0} pts</div>
+                </li>
+                ))}
               </ul>
             </div>
-            {/*left lower*/}
             <div className="border rounded-3xl h-1/2">
               <h1 className="text-3xl text-center font-bold">Leaderboard</h1>
             </div>
