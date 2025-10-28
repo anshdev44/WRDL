@@ -44,7 +44,7 @@ const Nav = () => {
     }
    }
    getprofilepic();
-  }, [])
+  }, [session])
   
 
   const navItemClasses =

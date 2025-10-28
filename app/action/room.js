@@ -3,9 +3,13 @@ import Room from "../models/room";
 import connectDB from "../db/connect";
 import { fetchuser } from "./interaction";
 import { fetchprofilepic } from "./interaction";
+import { io } from "socket.io-client";
 
 
-export const createRandomString = async (email, username) => {
+// const sid=0;
+
+
+export const CreateNewRoom = async (email, username) => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   const length = 6;
   await connectDB();
@@ -16,7 +20,7 @@ export const createRandomString = async (email, username) => {
     }
     const existingroom = await Room.findOne({ roomID: roomID });
     const res = await fetchprofilepic(email);
-   
+
     // console.log("Fetched user for room creation:", res.profilepic);
     if (!existingroom) {
       await Room.create({
@@ -25,7 +29,7 @@ export const createRandomString = async (email, username) => {
           username,
           profilepic: res.profilepic,
           email,
-          role:"host"
+          role: "host"
         }]
       });
       // console.log("Room id", roomID);
@@ -34,6 +38,7 @@ export const createRandomString = async (email, username) => {
   }
   return null;
 }
+
 
 
 //increment player count
@@ -51,41 +56,42 @@ export const incrementplayercount = async (roomID) => {
 
 }
 
-export const getroomdata=async (roomid)=>{
+export const getroomdata = async (roomid) => {
   await connectDB();
-  const room= await Room.findOne({ roomID: roomid }).lean();
-  if(room){
-    room._id=String(room._id);
-    return {message:"Room data found",status:200,room};
-  }else{
-    return {error:"Room not found",status:404};
+  const room = await Room.findOne({ roomID: roomid }).lean();
+  if (room) {
+    room._id = String(room._id);
+    return { message: "Room data found", status: 200, room };
+  } else {
+    return { error: "Room not found", status: 404 };
   }
 }
 
-export const handlejoinroombackend=async (roomid,email,username)=>{
-  await connectDB(); 
-  const exsistingroom=await Room.find({roomID:roomid});
-  if(!exsistingroom){
-    return {error:"Room does not exsits",status:404};
+export const handlejoinroombackend = async (roomid, email, username) => {
+  await connectDB();
+  const exsistingroom = await Room.findOne({ roomID: roomid });
+  console.log("Existing room:", exsistingroom);
+  if (!exsistingroom) {
+    return { error: "Room does not exsits", status: 404 };
   }
-  else{
-    if(exsistingroom.players.length>=4){
-      return {error:"Room is full",status:403};
+  else {
+    if (exsistingroom.players.length >= 4) {
+      return { error: "Room is full", status: 403 };
     }
-    if(exsistingroom.status==="playing"){
-      return {error:"Game already started",status:403};
+    if (exsistingroom.status === "playing") {
+      return { error: "Game already started", status: 403 };
     }
-    if(exsistingroom.players.find(player=>player.email===email)){
-      return {error:"User already in the room",status:409};
+    if (exsistingroom.players.find(player => player.email === email)) {
+      return { error: "User already in the room", status: 409 };
     }
-    const res=await fetchprofilepic(email);
+    const res = await fetchprofilepic(email);
     exsistingroom.players.push({
       username,
-      profilepic:res.profilepic,
+      profilepic: res.profilepic,
       email,
-      role:"player"
+      role: "player"
     });
     await exsistingroom.save();
-    return {message:"joined thr room",status:200};
+    return { message: "joined thr room", status: 200 };
   }
 }

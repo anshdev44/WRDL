@@ -3,13 +3,16 @@ import React from "react";
 import TextType from "./TextType";
 import Nav from "./components/nav";
 import { useState } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { ToastContainer, toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { fetchuser } from "./action/interaction";
-import { createRandomString } from "./action/room";
+import { CreateNewRoom } from "./action/room";
 import { handlejoinroombackend } from "./action/room";
+import { io } from "socket.io-client";
+import socket from "./socket";
+// import socket, { connectSocket } from "./socket";
 
 const Page = () => {
   const [joinroom, setJoinroom] = useState(false);
@@ -17,19 +20,37 @@ const Page = () => {
   const router = useRouter();
   const [roomid, setRoomid] = useState("");
   const { data: session } = useSession();
+  // console.log("Joining room:", roomid);
+  // const socket = io("http://localhost:4000");
 
-  const tooglejonroom=()=>{
-    setJoinroom(prev=>!prev);
+
+
+  useEffect(() => {
+    socket.connect();
+    console.log("✅inside useeffect");
+    socket.on("connect", () => {
+      console.log("✅ A user just connected", socket.id);
+    });
+
+  }, [])
+  
+  socket.on("disconnect", () => {
+    console.log("❌ A user just disconnected",socket.id); 
+  });
+  
+  const tooglejonroom = () => {
+    setJoinroom(prev => !prev);
   }
 
   const handlejoinroom = () => {
+
     async function join() {
-      const res= await handlejoinroombackend(roomid,session.user?.email,username);
-      if(res.status===200){
+      const res = await handlejoinroombackend(roomid, session.user?.email, username);
+      if (res.status === 200) {
         router.push(`/game/${roomid}`);
         toast.info(res.message);
       }
-      else{
+      else {
         toast.error(res.error);
       }
     }
@@ -48,17 +69,20 @@ const Page = () => {
     getusername();
   }, [session]);
 
+
   const HandleCreateRoom = async () => {
     if (!session) {
-      toast.info("Please Login FIrst Before creating a room");
+      toast.info("Please Login First Before creating a room");
     } else {
-      let room = await createRandomString(session.user?.email, username);
+      //inside room is the unique randomly generated room id
+      let room = await CreateNewRoom(session.user?.email, username);
       if (!room) {
-        toast.info("servers are busy try again later");
+        toast.info("Servers are busy, try again later");
       } else {
-        setRoomid(room);
-        // console.log("Created room id:",room);
+        // setRoomid(room);
+        socket.emit("join-room",room,username);
         router.push(`/game/${room}`);
+
       }
     }
   };
@@ -106,7 +130,7 @@ const Page = () => {
             </button>
 
             <button
-              onClick={()=>{tooglejonroom()}}
+              onClick={() => { tooglejonroom() }}
               className="bg-gradient-to-r from-blue-700 to-purple-600 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_25px_#2563EB]"
             >
               Join Room
@@ -122,6 +146,8 @@ const Page = () => {
                 <input
                   placeholder="Enter Room Code"
                   type="text"
+                  value={roomid}
+                  onChange={(e) => setRoomid(e.target.value)}
                   className="
                                         flex-grow p-3 text-lg rounded-xl 
                                         bg-gray-900 text-white placeholder-gray-500
