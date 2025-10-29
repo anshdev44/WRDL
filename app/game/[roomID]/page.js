@@ -1,56 +1,91 @@
 "use client";
 import React from "react";
 import { useState } from "react";
-// import logo from '../../../public/logo.jpg'
-import { useSession } from "next-auth/react";
 import Nav from "@/app/components/nav";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { useEffect } from "react";
 import { getroomdata } from "@/app/action/room";
 import { io, Socket } from "socket.io-client";
-import { RouteMatcher } from "next/dist/server/route-matchers/route-matcher";
 import { useRouter } from "next/navigation";
-// import socket from "";
-import socket from "../../socket";
-// import usetimeout from "use-timeout";
+import socket from "@/app/socket";
 import { fetchuser } from "@/app/action/interaction";
+import { toast } from "react-toastify";
 
 const page = ({ params }) => {
- console.log("a user with id ",socket.id,"is in the room");
-  
-  // const [setstartgame, setSetstartgame] = useState(false);
-  const { data: session } = useSession();
   const [players, setPlayers] = useState([]);
   const [playerinfo, setPlayerinfo] = useState([]);
+  const { data: session, status } = useSession();
   const router = useRouter();
 
+  useEffect(() => {
+    if (status === "loading") return;
+    
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+  }, [session, status, router]);
 
   useEffect(() => {
     async function getroom() {
       const res = await getroomdata(params.roomID);
       if (res.status === 200) {
         setPlayers(res.room.players);
-        console.log("Room data:", res.room);
       } else {
         console.log("Room not found");
+        toast.error("Room not found");
+        router.push("/");
       }
     }
-    getroom();
-  }, [session]);
+    if (session?.user?.email) {
+      getroom();
+    }
+  }, [session, params.roomID]);
 
   useEffect(() => {
     async function getplayerinfo() {
       const res = await fetchuser(session.user?.email);
-      if(res.status===200){
+      if (res.status === 200) {
         setPlayerinfo(res.user);
-      }
-      else{
+      } else {
         setPlayerinfo(null);
         console.log("User not found");
       }
     }
-    getplayerinfo();
-  }, [session])
-  
+
+    if (session?.user?.email) {
+      getplayerinfo();
+    }
+  }, [session]);
+
+  const leaveroomhandling = () => {
+    const roomid = params.roomID;
+    // console.log("Room id which we are leaving is"+params.roomID)
+    if (!session?.user?.email) {
+      toast.error("Please login first");
+      return;
+    }
+
+    if (!socket.connected) {
+      connectSocket();
+    }
+
+    try {
+      // console.log(session.user.email + "is trying to leave room with id"+roomid);
+      socket.emit("leave-room", roomid, session.user.email);
+      
+      socket.on("error-leaving-room", (roomId, email) => {
+        toast.error("Error leaving room");
+        console.error("Failed to leave room:", roomId, email);
+      });
+
+      toast.info("Leaving room...");
+      router.push("/");
+    } catch (err) {
+      console.error("Error in leave room:", err);
+      toast.error("Failed to leave room");
+    }
+  };
 
   return (
     <>
@@ -68,9 +103,7 @@ const page = ({ params }) => {
           {/* Leave Room Button */}
           <button
             onClick={() => {
-              // Replace with your actual leave logic (e.g. socket disconnect + redirect)
-              socket.emit("leave-room", params.roomID, playerinfo.username);
-              router.push("/");
+              leaveroomhandling();
             }}
             className="
           absolute right-10 top-1/2 -translate-y-1/2
@@ -101,7 +134,7 @@ const page = ({ params }) => {
                         src={player.profilepic}
                         alt="player avatar"
                       />
-                      {console.log("Profile Pic", player.profilepic)}
+                      {/* {console.log("Profile Pic", player.profilepic)} */}
                       <div>
                         <h2 className="font-semibold">
                           {player.username || "Player"}

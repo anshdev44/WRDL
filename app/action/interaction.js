@@ -102,3 +102,4 @@ export const fetchprofilepic =async (email)=>{
         return { error: "user does not exsits", status: 404 }
     }
 }
+

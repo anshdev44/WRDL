@@ -95,3 +95,31 @@ export const handlejoinroombackend = async (roomid, email, username) => {
     return { message: "joined thr room", status: 200 };
   }
 }
+
+export const leaveroombackend = async (roomid, email) => {
+  await connectDB();
+  const existingRoom = await Room.findOne({ roomID: roomid });
+
+  if (!existingRoom) {
+    return { error: "Room does not exist", status: 404 };
+  }
+  const playerLeaving = existingRoom.players.find(p => p.email === email);
+
+  if (!playerLeaving) {
+    return { error: "Player not found in this room", status: 404 };
+  }
+  const updatedRoom = await Room.findOneAndUpdate(
+    { roomID: roomid },
+    { $pull: { players: { email: email } } },
+    { new: true }
+  );
+  if (updatedRoom.players.length === 0) {
+    await Room.deleteOne({ roomID: roomid });
+    return { message: "Player removed and empty room was deleted.", status: 200 };
+  }
+  if (playerLeaving.role === 'host') {
+    await Room.deleteOne({ roomID: roomid });
+    return { message: "Host left the room.", status: 201 };
+  }
+  return { message: "Player removed successfully.", status: 200,room: updatedRoom};
+};
