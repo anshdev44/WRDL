@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { leaveroombackend } from "@/app/action/room"; // adjust path if needed
+import { leaveroombackend } from "@/app/action/room"; 
 
 export async function POST(req) {
   try {

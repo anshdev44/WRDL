@@ -10,7 +10,7 @@ import { io } from "socket.io-client";
 
 
 export const CreateNewRoom = async (email, username) => {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   const length = 6;
   await connectDB();
   for (let j = 0; j < 1000; j++) {
@@ -70,7 +70,7 @@ export const getroomdata = async (roomid) => {
 export const handlejoinroombackend = async (roomid, email, username) => {
   await connectDB();
   const exsistingroom = await Room.findOne({ roomID: roomid });
-  console.log("Existing room:", exsistingroom);
+  // console.log("Existing room:", exsistingroom);
   if (!exsistingroom) {
     return { error: "Room does not exsits", status: 404 };
   }
@@ -80,7 +80,7 @@ export const handlejoinroombackend = async (roomid, email, username) => {
     }
     if (exsistingroom.status === "playing") {
       return { error: "Game already started", status: 403 };
-    }
+    } 
     if (exsistingroom.players.find(player => player.email === email)) {
       return { error: "User already in the room", status: 409 };
     }

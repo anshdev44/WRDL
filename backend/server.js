@@ -19,13 +19,44 @@ httpServer.listen(4000, () => {
 
 io.on("connection", (socket) => {
     console.log("✅ A user just connected", socket.id);
-    socket.on("disconnect", (socket) => {
+    socket.on("disconnect", () => {
         console.log("❌ A user just disconnected", socket.id);
     })
-    socket.on("join-room", (roomID, username) => {
-        socket.join(roomID);
-        console.log(`✅ ${username} joined room: ${roomID} with socket ID: ${socket.id}`);
-        socket.to(roomID).emit(username, "has joined the room");
+    socket.on("join-room", (roomID, username, email) => {
+        console.log(`✅${username} is trying to join room with id ${roomID} and his email is ${email}`);
+        try {
+            const myHeaders = new Headers();
+            myHeaders.append("Content-Type", "application/json");
+
+            const raw = JSON.stringify({
+                "roomId": roomID,
+                "email": email,
+                "username": username
+            });
+
+            const requestOptions = {
+                method: "POST",
+                headers: myHeaders,
+                body: raw,
+                redirect: "follow"
+            };
+
+            const res = fetch("http://localhost:3000/api/room/join", requestOptions)
+            if (res.status === 200) {
+                socket.join(roomID);
+                io.to(roomID).emit("user_joined", {
+                    user: username,
+                    message: "has joined the room"
+                });
+                socket.emit("joined-room", (roomID, username, email));
+            }
+            else {
+                socket.to(roomID).emit(username, "was unable to connect to the room");
+                console.log(username, "tried to connect with room id", roomID, "but was unable to connect");
+            }
+
+        } catch (err) {
+        }
     })
     socket.on("leave-room", async (roomID, email) => {
         console.log(`❌ ${email} left room: ${roomID} with socket ID: ${socket.id}`);
@@ -50,21 +81,21 @@ io.on("connection", (socket) => {
             const data = await res.json();
 
             if (res.status === 200) {
-                // Regular player left, notify others
+
                 socket.leave(roomID);
                 io.to(roomID).emit("player-left", { email, message: data.message });
 
                 if (data.message && data.message.includes("empty room was deleted")) {
-                    // Room was deleted because it's empty
+
                     io.in(roomID).emit("room-deleted", { reason: "empty" });
                     io.in(roomID).socketsLeave(roomID);
                 }
             } else if (res.status === 201) {
-                // Host left, notify everyone and close room
+
                 io.to(roomID).emit("room-deleted", { reason: "host-left" });
                 io.in(roomID).socketsLeave(roomID);
             } else {
-                // Error occurred
+
                 socket.emit("error-leaving-room", {
                     error: data.error || "Some Error occured at our side",
                     roomID,
