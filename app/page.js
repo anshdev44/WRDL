@@ -39,28 +39,55 @@ const Page = () => {
     setJoinroom(prev => !prev);
   }
 
-  const handlejoinroom = () => {
-    // console.log("✅", username, "is trying to get in room", roomid, "with email", session.user.email);
-    async function join() {
-      if (!session?.user?.email) {
-        toast.error("Please login first");
-        return;
-      }
-      if (!socket.connected) {
-        connectSocket();
-      }
+  const handlejoinroom = async () => {
+    if (!session?.user?.email) {
+      toast.error("Please login first");
+      return;
+    }
 
+    if (!roomid || roomid.trim() === "") {
+      toast.error("Please enter a room code");
+      return;
+    }
+
+    // Ensure socket is connected
+    if (!socket.connected) {
       try {
-        // const email=session.user.email;
-        socket.on("join-room", (roomid,username,email) => {
-          toast.info("room joined successfully");
-        })
-      } catch (err) {
-         toast.info("unable to join room");
+        socket.connect();
+      } catch (e) {
+        console.warn("Socket connect failed:", e);
       }
     }
-    join();
-  }
+
+    try {
+      const response = await fetch("/api/room/join", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          roomId: roomid,
+          email: session.user.email,
+          username: username,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Notify socket server so it can add the socket to the room
+        socket.emit("join-room", roomid, username, session.user.email);
+        toast.success("Joined room");
+        router.push(`/game/${roomid}`);
+      } else {
+        console.error("Join room failed:", data);
+        toast.error(data.error || data.details || "Failed to join room");
+      }
+    } catch (err) {
+      console.error("Error joining room:", err);
+      toast.error("Failed to join room. Please try again.");
+    }
+  };
 
 
     useEffect(() => {
@@ -83,7 +110,7 @@ const Page = () => {
         if (!room) {
           toast.info("Servers are busy, try again later");
         } else {
-          socket.emit("join-room", room, username);
+          socket.emit("create-room", room, username);
           router.push(`/game/${room}`);
 
         }

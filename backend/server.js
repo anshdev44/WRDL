@@ -112,4 +112,10 @@ io.on("connection", (socket) => {
         }
     })
 
+    socket.on("create-room", (roomID, username) => {
+        socket.join(roomID);
+        console.log(`✅ ${username} create room: ${roomID} with socket ID: ${socket.id}`);
+        // socket.to(roomID).emit(username, "has joined the room");
+    })
+
 })
