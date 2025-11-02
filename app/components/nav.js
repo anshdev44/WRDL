@@ -11,6 +11,7 @@ const Nav = () => {
   const router = useRouter();
   const [profile, setprofile] = useState("");
   const [username, setusername] = useState("");
+  // const [profilepic, setProfilepic] = useState("");
   const { data: session } = useSession();
 
 
@@ -20,32 +21,32 @@ const Nav = () => {
   };
 
   useEffect(() => {
-   async function getusername(){
-    const res=await fetchuser(session.user.email);
-    if(res.status===200){
-     setusername(res.user.username);
+    async function getusername() {
+      const res = await fetchuser(session.user.email);
+      if (res.status === 200) {
+        setusername(res.user.username);
+      }
+      else {
+        setusername("User");
+      }
     }
-    else{
-      setusername("User");
-    }
-   }
-   getusername();
+    getusername();
   }, [session])
-  
+
 
   useEffect(() => {
-   async function getprofilepic(){
-    const res=await fetchprofilepic(session.user.email);
-    if(res.status===200){
-      setprofile(res.profilepic);
+    async function getprofilepic() {
+      const res = await fetchprofilepic(session.user.email);
+      if (res.status === 200) {
+        setprofile(res.profilepic);
+      }
+      else {
+        setprofile("https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg")
+      }
     }
-    else {
-      setprofile("https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg")
-    }
-   }
-   getprofilepic();
+    getprofilepic();
   }, [session])
-  
+
 
   const navItemClasses =
     "cursor-pointer hover:bg-gray-700/50 rounded-full p-3.5 transition-colors duration-200";

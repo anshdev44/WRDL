@@ -15,11 +15,12 @@ const page = ({ params }) => {
   const [players, setPlayers] = useState([]);
   const [playerinfo, setPlayerinfo] = useState([]);
   const { data: session, status } = useSession();
+  const [gamestarted, setGamestarted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (status === "loading") return;
-    
+
     if (!session) {
       router.push("/login");
       return;
@@ -73,12 +74,11 @@ const page = ({ params }) => {
     try {
       // console.log(session.user.email + "is trying to leave room with id"+roomid);
       socket.emit("leave-room", roomid, session.user.email);
-      
+
       socket.on("error-leaving-room", (roomId, email) => {
         toast.error("Error leaving room");
         console.error("Failed to leave room:", roomId, email);
       });
-
       toast.info("Leaving room...");
       router.push("/");
     } catch (err) {
@@ -106,7 +106,7 @@ const page = ({ params }) => {
               leaveroomhandling();
             }}
             className="
-          absolute right-10 top-1/2 -translate-y-1/2
+            absolute right-10 top-1/2 -translate-y-1/2
           bg-gradient-to-r from-red-600 to-pink-600
           text-white px-6 py-3 rounded-full font-semibold text-lg
           shadow-lg hover:scale-110 transition-transform duration-300
@@ -158,13 +158,25 @@ const page = ({ params }) => {
 
           {/* middle section */}
           <div className="rounded-3xl w-1/2 h-[100%] border flex flex-col">
-            <div className="border h-2/5 rounded-3xl">
-              <h1 className="text-3xl text-center font-bold">Word</h1>
+            <div className="border h-2/5 rounded-3xl flex items-center justify-center">
+              {gamestarted ? (
+                <h1 className="text-3xl text-center font-bold">Word</h1>
+              ) : (
+                <button
+                  className="
+          cursor-pointerbg-gradient-to-r from-green-600 to-emerald-600
+          text-white px-6 py-3 rounded-full font-semibold text-lg
+          shadow-lg hover:scale-110 transition-transform duration-300
+          hover:shadow-[0_0_25px_#10B981]
+        "
+                >
+                  Start Game
+                </button>
+              )}
             </div>
+
             <div className="border h-3/5 rounded-3xl">
-              <div>
-                <h1 className="text-3xl text-center font-bold">Hints</h1>
-              </div>
+              <h1 className="text-3xl text-center font-bold">Hints</h1>
             </div>
           </div>
 

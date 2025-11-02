@@ -154,7 +154,8 @@ const Page = () => {
                 onClick={() => {
                   HandleCreateRoom();
                 }}
-                className="bg-gradient-to-r from-purple-700 to-blue-600 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_25px_#6D28D9]"
+                className="bg-gradient-to-r from-indigo-500 to-purple-700 cursor-pointer text-white px-10 py-4 rounded-full text-xl font-semibold shadow-lg hover:scale-110 transition-transform duration-300 hover:shadow-[0_0_20px_#6D28D9]
+"
               >
                 Create Room
               </button>

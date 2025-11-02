@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import User from "../models/user";
 import connectDB from "../db/connect";
 
+
 export const saveprofile = async (data) => {
     await connectDB();
     const currentuser = await User.findOne({ email: data.email }).lean();
@@ -102,4 +103,6 @@ export const fetchprofilepic =async (email)=>{
         return { error: "user does not exsits", status: 404 }
     }
 }
+
+
 

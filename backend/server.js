@@ -15,12 +15,20 @@ httpServer.listen(4000, () => {
     console.log("✅ Server is listening on port 4000");
 });
 
-
-
 io.on("connection", (socket) => {
     console.log("✅ A user just connected", socket.id);
+
+    //leave room if socket automatically disconnects form the server
     socket.on("disconnect", () => {
         console.log("❌ A user just disconnected", socket.id);
+        const socketinroom = socket.rooms;
+        if (socketinroom.size > 0) {
+            const room = socket.rooms[0];
+            // socket.leave(room);
+            
+            console.log("✅", email, "left the room with id" + room, "upon disconnection");
+        }
+
     })
     socket.on("join-room", (roomID, username, email) => {
         console.log(`✅${username} is trying to join room with id ${roomID} and his email is ${email}`);
