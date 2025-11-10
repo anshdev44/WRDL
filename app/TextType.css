@@ -1,4 +1,4 @@
-.text-type {
+/* .text-type {
   display: inline-block;
   white-space: pre-wrap;
 }
@@ -11,4 +11,29 @@
 
 .text-type__cursor--hidden {
   display: none;
+} */
+
+.text-type {
+    display: inline-flex;
+    align-items: center;
+}
+
+.text-type__content {
+    white-space: pre;
+}
+
+.text-type__cursor {
+    display: inline-block;
+    margin-left: 2px;
+    animation: blink var(--blink-speed, 0.5s) step-start infinite;
+}
+
+.text-type__cursor--hidden {
+    visibility: hidden;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
 }
