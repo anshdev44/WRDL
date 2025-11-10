@@ -79,6 +79,37 @@ const Page = () => {
         socket.emit("join-room", roomid, username, session.user.email);
         toast.success("Joined room");
         router.push(`/game/${roomid}`);
+<<<<<<< HEAD
+=======
+        toast.info(res.message);
+      }
+      else {
+        toast.error(res.error);
+      }
+    }
+    join();
+  }
+
+  useEffect(() => {
+    async function getusername() {
+      const res = await fetchuser(session.user.email);
+      if (res.status === 200) {
+        setUsername(res.user.username);
+      }
+    }
+    getusername();
+  }, [session]);
+
+
+  const HandleCreateRoom = async () => {
+    if (!session) {
+      toast.info("Please Login First Before creating a room");
+    } else {
+      //inside room is the unique randomly generated room id
+      let room = await CreateNewRoom(session.user?.email, username);
+      if (!room) {
+        toast.info("Servers are busy, try again later");
+>>>>>>> 26087da (add feture to start by host and player to buzz the host)
       } else {
         console.error("Join room failed:", data);
         toast.error(data.error || data.details || "Failed to join room");

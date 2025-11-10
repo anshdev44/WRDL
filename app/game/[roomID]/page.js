@@ -33,6 +33,7 @@ const page = ({ params }) => {
             const res = await getroomdata(params.roomID);
             if (res.status === 200) {
                 setPlayers(res.room.players);
+                setRoomID(res.room.roomID);
             } else {
                 console.log("Room not found");
                 toast.error("Room not found");
@@ -61,7 +62,7 @@ const page = ({ params }) => {
     }, [session]);
 
     const leaveroomhandling = () => {
-        const roomid = params.roomID;
+        const roomid = roomID;
         // console.log("Room id which we are leaving is"+params.roomID)
         if (!session?.user?.email) {
             toast.error("Please login first");
