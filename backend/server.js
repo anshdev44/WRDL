@@ -66,7 +66,6 @@ io.on("connection", (socket) => {
                 });
                 socket.emit("joined-room", (roomID, username, email));
             } else {
-                // TODO: fix this log to be displayed unnecessarily
                 socket
                     .to(roomID)
                     .emit(username, "was unable to connect to the room");
@@ -74,11 +73,7 @@ io.on("connection", (socket) => {
                     username,
                     "tried to connect with room id",
                     roomID,
-                    "but was unable to connect",
-                    res.message,
-                    res.status,
-                    res.error,
-                    res
+                    "but was unable to connect"
                 );
             }
         } catch (err) {}
