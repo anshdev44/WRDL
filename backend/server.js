@@ -156,12 +156,21 @@ io.on("connection", (socket) => {
         console.log("BUZZED event received from", socket.id, "payload:", payload);
 
         if (roomID) {
-           
-            socket.to(roomID).emit("BUZZES", { id: socket.id, username, email });
+           // Emit to all sockets in the room (including the sender if needed)
+            console.log("Emitting BUZZES to room:", roomID, { id: socket.id, username, email });
+            io.to(roomID).emit("BUZZES", { id: socket.id, username, email });
         } else {
          
             io.emit("BUZZED", { from: socket.id, username, email });
         }
     });
 
+    socket.on("start-game",(roomid)=>{
+       if(!roomid){
+        console.error("start-game event missing roomID");
+        io.emit("error-starting-game",{ error: "Missing roomID"});
+        return;
+       }
+       io.to(roomid).emit("game-started",{message:"Game is starting"})
+    })
 })

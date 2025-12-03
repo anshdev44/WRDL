@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import socket from "@/app/socket";
 import { fetchuser } from "@/app/action/interaction";
 import { toast } from "react-toastify";
+import { set } from "mongoose";
+import { startgamerendering } from "@/app/action/room";
 
 const page = ({ params }) => {
   const [players, setPlayers] = useState([]);
@@ -15,6 +17,7 @@ const page = ({ params }) => {
   const { data: session, status } = useSession();
   const [gamestarted, setGamestarted] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const [roomInfo, setRoomInfo] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -29,6 +32,7 @@ const page = ({ params }) => {
   useEffect(() => {
     async function getroom() {
       const res = await getroomdata(params.roomID);
+      setRoomInfo(res.room);
       if (res.status === 200) {
         setPlayers(res.room.players || []);
         console.log("Room data:", res.room.players);
@@ -62,6 +66,7 @@ const page = ({ params }) => {
       getplayerinfo();
     }
   }, [session]);
+  // console.log("roomid is ", params.roomID);
 
   const Buzzer = () => {
     if (gamestarted) {
@@ -74,6 +79,8 @@ const page = ({ params }) => {
     }
 
     const roomId = params.roomID;
+    
+    console.log("Buzzer clicked for room:", roomId);
 
     // ensure socket is connected
     if (!socket.connected) {
@@ -111,6 +118,7 @@ const page = ({ params }) => {
       console.log("Setting up BUZZES listener");
       const handleBuzzes = (data) => {
         console.log("Buzz data received:", data);
+        alert(`Player ${data.username} has buzzed!`); 
       };
 
       socket.on("BUZZES", handleBuzzes);
@@ -157,6 +165,29 @@ const page = ({ params }) => {
       toast.error("Failed to leave room");
     }
   };
+
+  const startgamehandling = async () => {
+    const roomid = params.roomID;
+    const res = await startgamerendering(roomid);
+    if (res.status === 200) {
+      socket.emit("start-game", roomid);
+      socket.on("error-starting-game",(roomid
+      )=>{
+        toast.error("Error starting game");
+        console.error("Failed to start game:", roomid);
+      });
+      socket.on("game-started", () => {
+        alert("Game started by the host!");
+        setGamestarted(true);
+      })
+    }
+    else{
+      toast.error(res.error || "Cannot start game");
+      console.log(res.status);
+      console.error(res.error);
+      alert(res.status );
+    }
+  }
 
   return (
     <>
@@ -240,6 +271,7 @@ const page = ({ params }) => {
                     text-white px-6 py-3 rounded-full font-semibold text-lg
                     shadow-lg hover:scale-105 transition-transform duration-200
                   "
+                  onClick={()=>{startgamehandling()}}
                 >
                   Start Game
                 </button>

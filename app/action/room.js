@@ -127,3 +127,17 @@ export const leaveroombackend = async (roomid, email) => {
         room: updatedRoom,
     };
 };
+
+export const startgamerendering = async (roomid) => {
+    await connectDB();
+    const existingRoom = await Room.findOne({ roomID: roomid });
+    if (!existingRoom) {
+        return { error: "Room does not exist", status: 404 };
+    }
+    if (existingRoom.players.length < 2) {
+        return { error: "Not enough players to start the game", status: 403 };
+    }
+    existingRoom.status = "playing";
+    await existingRoom.save();
+    return { message: "Game started", status: 200 };
+}
