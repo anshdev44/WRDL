@@ -9,21 +9,21 @@ export async function POST(req) {
 
         if (!roomId || !email || !username) {
             return NextResponse.json(
-                { 
+                {
                     error: "Missing required fields",
                     details: `Please provide ${!roomId ? 'roomId' : ''} ${!email ? 'email' : ''} ${!username ? 'username' : ''}`.trim(),
-                    status: 400 
+                    status: 400
                 },
                 { status: 400 }
             );
         }
-        let res;    
+        let res;
         try {
             res = await handlejoinroombackend(roomId, email, username);
         } catch (backendErr) {
             console.log("Backend join room operation failed:", backendErr);
             return NextResponse.json(
-                { 
+                {
                     error: "Failed to process join room request",
                     details: backendErr.message,
 
@@ -33,15 +33,15 @@ export async function POST(req) {
         }
         if (res.status !== 200) {
             console.log("Join room operation failed with status:", res.status, res.error);
-            return NextResponse.json({ 
-                error: res.error, 
+            return NextResponse.json({
+                error: res.error,
                 details: res.error || "Unable to join room. Please try again later.",
                 status: res.status
             }, { status: res.status });
         }
         else {
-            return NextResponse.json({ 
-                message: res.message, 
+            return NextResponse.json({
+                message: res.message,
                 details: "Successfully joined the room",
                 status: res.status,
             });
@@ -50,7 +50,7 @@ export async function POST(req) {
     } catch (err) {
         console.log("Critical error in join room API:", err);
         return NextResponse.json(
-            { 
+            {
                 error: "Internal server error",
                 details: err.message,
                 status: 500,

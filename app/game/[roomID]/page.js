@@ -12,105 +12,176 @@ import { fetchuser } from "@/app/action/interaction";
 import { toast } from "react-toastify";
 
 const page = ({ params }) => {
-    const [players, setPlayers] = useState([]);
-    const [playerinfo, setPlayerinfo] = useState([]);
-    const { data: session, status } = useSession();
-    const [gamestarted, setGamestarted] = useState(false);
-    const router = useRouter();
+  const [players, setPlayers] = useState([]);
+  const [playerinfo, setPlayerinfo] = useState([]);
+  const { data: session, status } = useSession();
+  const [gamestarted, setGamestarted] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  const router = useRouter();
 
-    // unwrapping params
-    const { roomID } = React.use(params);
+  useEffect(() => {
+    if (status === "loading") return;
 
-    useEffect(() => {
-        if (status === "loading") return;
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+  }, [session, status, router]);
 
-        if (!session) {
-            router.push("/login");
-            return;
+  useEffect(() => {
+    async function getroom() {
+      const res = await getroomdata(params.roomID);
+      if (res.status === 200) {
+        setPlayers(res.room.players);
+        console.log("Room data:", res.room.players);
+        for (let player of res.room.players) {
+          if (player.email === session.user.email && player.role === "host") {
+            setIsHost(true);
+          }
         }
-    }, [session, status, router]);
+        console.log("Is Host:", isHost);
+      } else {
+        console.log("Room not found");
+        toast.error("Room not found");
+        router.push("/");
+      }
+    }
+    if (session?.user?.email) {
+      getroom();
+    }
+  }, [session, params.roomID]);
 
-    useEffect(() => {
-        async function getroom() {
-            const res = await getroomdata(roomID);
-            if (res.status === 200) {
-                setPlayers(res.room.players);
-            } else {
-                console.log("Room not found");
-                toast.error("Room not found");
-                router.push("/");
-            }
-        }
-        if (session?.user?.email) {
-            getroom();
-        }
-    }, [session, roomID]);
+  useEffect(() => {
+    async function getplayerinfo() {
+      const res = await fetchuser(session.user?.email);
+      if (res.status === 200) {
+        setPlayerinfo(res.user);
+        // console.log("User found:", res.user);
+      } else {
+        setPlayerinfo(null);
+        console.log("User not found");
+      }
+    }
 
-    useEffect(() => {
-        async function getplayerinfo() {
-            const res = await fetchuser(session.user?.email);
-            if (res.status === 200) {
-                setPlayerinfo(res.user);
-            } else {
-                setPlayerinfo(null);
-                console.log("User not found");
-            }
-        }
+    if (session?.user?.email) {
+      getplayerinfo();
+    }
+  }, [session]);
 
-        if (session?.user?.email) {
-            getplayerinfo();
-        }
-    }, [session]);
+  const Buzzer = () => {
+    if (gamestarted) {
+      toast.info("Game already started");
+      return;
+    }
+    if (!session?.user?.email) {
+      toast.error("Please login");
+      return;
+    }
 
-    const leaveroomhandling = () => {
-        const roomid = roomID;
-        // console.log("Room id which we are leaving is"+params.roomID)
-        if (!session?.user?.email) {
-            toast.error("Please login first");
-            return;
-        }
+    const roomId = params.roomID;
 
-        if (!socket.connected) {
-            connectSocket();
-        }
+    // ensure socket is connected
+    if (!socket.connected) {
+      try {
+        socket.connect();
+      } catch (err) {
+        console.error("Socket connect error:", err);
+      }
+    }
 
+    try {
+      socket.emit("BUZZED", {
+        roomID: roomId,
+        username: playerinfo.username,
+        email: playerinfo.email,
+      });
+      toast.info("Buzzed the host!");
+    } catch (err) {
+      console.error("Error in buzzer:", err);
+      toast.info("Failed to buzz host");
+    }
+  };
+
+  useEffect(() => {
+    try {
+      if (!socket) {
+        console.warn("Socket not initialized");
+        return;
+      }
+
+      if (!socket.connected) {
+        socket.connect();
+      }
+
+      console.log("Setting up BUZZES listener");
+      const handleBuzzes = (data) => {
+        console.log("Buzz data received:", data);
+      };
+
+      socket.on("BUZZES", handleBuzzes);
+
+      return () => {
         try {
-            // console.log(session.user.email + "is trying to leave room with id"+roomid);
-            socket.emit("leave-room", roomid, session.user.email);
-
-            socket.on("error-leaving-room", (roomId, email) => {
-                toast.error("Error leaving room");
-                console.error("Failed to leave room:", roomId, email);
-            });
-            toast.info("Leaving room...");
-            router.push("/");
+          socket.off("BUZZES", handleBuzzes);
+          console.log("Removed BUZZES listener");
         } catch (err) {
-            console.error("Error in leave room:", err);
-            toast.error("Failed to leave room");
+          console.error("Error removing BUZZES listener:", err);
         }
-    };
+      };
+    } catch (err) {
+      console.error("Error setting up BUZZES listener:", err);
+    }
+  }, [])
+  
 
-    return (
-        <>
-            <Nav />
-            <div className="flex justify-center mt-30 flex-col items-center">
-                {/* Header Section */}
-                <div className="flex justify-center gap-250 items-center relative w-full">
-                    <div>
-                        <h1 className="text-3xl font-bold">
-                            Room ID: {roomID}
-                        </h1>
-                    </div>
-                    <div>
-                        <img className="w-50" src="/logo.png" alt="" />
-                    </div>
+  const leaveroomhandling = () => {
+    const roomid = params.roomID;
+    // console.log("Room id which we are leaving is"+params.roomID)
+    if (!session?.user?.email) {
+      toast.error("Please login first");
+      return;
+    }
 
-                    {/* Leave Room Button */}
-                    <button
-                        onClick={() => {
-                            leaveroomhandling();
-                        }}
-                        className="
+    if (!socket.connected) {
+      connectSocket();
+    }
+
+    try {
+      // console.log(session.user.email + "is trying to leave room with id"+roomid);
+      socket.emit("leave-room", roomid, session.user.email);
+
+      socket.on("error-leaving-room", (roomId, email) => {
+        toast.error("Error leaving room");
+        console.error("Failed to leave room:", roomId, email);
+      });
+      toast.info("Leaving room...");
+      router.push("/");
+    } catch (err) {
+      console.error("Error in leave room:", err);
+      toast.error("Failed to leave room");
+    }
+  };
+
+  return (
+    <>
+      <Nav />
+      <div className="flex justify-center mt-30 flex-col items-center">
+        {/* Header Section */}
+        <div className="flex justify-center gap-250 items-center relative w-full">
+          <div>
+            <h1 className="text-3xl font-bold">Room ID: {params.roomID}</h1>
+          </div>
+          <div>
+            <img className="w-50" src="/logo.png" alt="" />
+          </div>
+
+          {/* Leave Room Button */}
+          <button
+            onClick={() => {
+              leaveroomhandling();
+            }}
+            className="
+            cursor-pointer
             absolute right-10 top-1/2 -translate-y-1/2
           bg-gradient-to-r from-red-600 to-pink-600
           text-white px-6 py-3 rounded-full font-semibold text-lg
@@ -163,34 +234,50 @@ const page = ({ params }) => {
                             </h1>
                         </div>
                     </div>
-
-                    {/* middle section */}
-                    <div className="rounded-3xl w-1/2 h-[100%] border flex flex-col">
-                        <div className="border h-2/5 rounded-3xl flex items-center justify-center">
-                            {gamestarted ? (
-                                <h1 className="text-3xl text-center font-bold">
-                                    Word
-                                </h1>
-                            ) : (
-                                <button
-                                    className="
-          cursor-pointerbg-gradient-to-r from-green-600 to-emerald-600
-          text-white px-6 py-3 rounded-full font-semibold text-lg
-          shadow-lg hover:scale-110 transition-transform duration-300
-          hover:shadow-[0_0_25px_#10B981]
-        "
-                                >
-                                    Start Game
-                                </button>
-                            )}
-                        </div>
-
-                        <div className="border h-3/5 rounded-3xl">
-                            <h1 className="text-3xl text-center font-bold">
-                                Hints
-                            </h1>
-                        </div>
+                    <div className="text-right font-bold">
+                      {player.points ?? 0} pts
                     </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="border rounded-3xl h-1/2">
+              <h1 className="text-3xl text-center font-bold">Leaderboard</h1>
+            </div>
+          </div>
+
+          {/* middle section */}
+          <div className="rounded-3xl w-1/2 h-[100%] border flex flex-col">
+            <div className="border h-2/5 rounded-3xl flex items-center justify-center">
+              {gamestarted ? (
+                <h1 className="text-3xl text-center font-bold">Word</h1>
+              ) : isHost ? (
+                <button
+                  className="
+                    cursor-pointer bg-gradient-to-r from-green-500 to-teal-500
+                    text-white px-6 py-3 rounded-full font-semibold text-lg
+                    shadow-lg hover:scale-105 transition-transform duration-200
+                  "
+                >
+                  Start Game
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      Buzzer();
+                    }}
+                    className="
+                    cursor-pointer bg-gradient-to-r from-green-500 to-teal-500
+                    text-white px-6 py-3 rounded-full font-semibold text-lg
+                    shadow-lg hover:scale-105 transition-transform duration-200
+                  "
+                  >
+                    BUZZ HOST
+                  </button>
+                </>
+              )}
+            </div>
 
                     {/* right section */}
                     <div className="w-1/4 h-[100%] border rounded-3xl">

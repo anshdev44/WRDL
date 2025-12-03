@@ -145,5 +145,23 @@ io.on("connection", (socket) => {
             `✅ ${username} create room: ${roomID} with socket ID: ${socket.id}`
         );
         // socket.to(roomID).emit(username, "has joined the room");
+    })
+
+    socket.on("BUZZED", (payload) => {
+       
+        const roomID = payload && typeof payload === "object" ? payload.roomID : payload;
+        const username = payload && typeof payload === "object" ? payload.username : undefined;
+        const email = payload && typeof payload === "object" ? payload.email : undefined;
+
+        console.log("BUZZED event received from", socket.id, "payload:", payload);
+
+        if (roomID) {
+           
+            socket.to(roomID).emit("BUZZES", { id: socket.id, username, email });
+        } else {
+         
+            io.emit("BUZZED", { from: socket.id, username, email });
+        }
     });
-});
+
+})
