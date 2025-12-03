@@ -16,6 +16,7 @@ const page = ({ params }) => {
   const [playerinfo, setPlayerinfo] = useState([]);
   const { data: session, status } = useSession();
   const [gamestarted, setGamestarted] = useState(false);
+  const [isHost, setIsHost] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -32,6 +33,13 @@ const page = ({ params }) => {
       const res = await getroomdata(params.roomID);
       if (res.status === 200) {
         setPlayers(res.room.players);
+        console.log("Room data:", res.room.players);
+        for (let player of res.room.players) {
+          if (player.email === session.user.email && player.role === "host") {
+            setIsHost(true);
+          }
+        }
+        console.log("Is Host:", isHost);
       } else {
         console.log("Room not found");
         toast.error("Room not found");
@@ -48,6 +56,7 @@ const page = ({ params }) => {
       const res = await fetchuser(session.user?.email);
       if (res.status === 200) {
         setPlayerinfo(res.user);
+        // console.log("User found:", res.user);
       } else {
         setPlayerinfo(null);
         console.log("User not found");
@@ -58,6 +67,72 @@ const page = ({ params }) => {
       getplayerinfo();
     }
   }, [session]);
+
+  const Buzzer = () => {
+    if (gamestarted) {
+      toast.info("Game already started");
+      return;
+    }
+    if (!session?.user?.email) {
+      toast.error("Please login");
+      return;
+    }
+
+    const roomId = params.roomID;
+
+    // ensure socket is connected
+    if (!socket.connected) {
+      try {
+        socket.connect();
+      } catch (err) {
+        console.error("Socket connect error:", err);
+      }
+    }
+
+    try {
+      socket.emit("BUZZED", {
+        roomID: roomId,
+        username: playerinfo.username,
+        email: playerinfo.email,
+      });
+      toast.info("Buzzed the host!");
+    } catch (err) {
+      console.error("Error in buzzer:", err);
+      toast.info("Failed to buzz host");
+    }
+  };
+
+  useEffect(() => {
+    try {
+      if (!socket) {
+        console.warn("Socket not initialized");
+        return;
+      }
+
+      if (!socket.connected) {
+        socket.connect();
+      }
+
+      console.log("Setting up BUZZES listener");
+      const handleBuzzes = (data) => {
+        console.log("Buzz data received:", data);
+      };
+
+      socket.on("BUZZES", handleBuzzes);
+
+      return () => {
+        try {
+          socket.off("BUZZES", handleBuzzes);
+          console.log("Removed BUZZES listener");
+        } catch (err) {
+          console.error("Error removing BUZZES listener:", err);
+        }
+      };
+    } catch (err) {
+      console.error("Error setting up BUZZES listener:", err);
+    }
+  }, [])
+  
 
   const leaveroomhandling = () => {
     const roomid = params.roomID;
@@ -106,6 +181,7 @@ const page = ({ params }) => {
               leaveroomhandling();
             }}
             className="
+            cursor-pointer
             absolute right-10 top-1/2 -translate-y-1/2
           bg-gradient-to-r from-red-600 to-pink-600
           text-white px-6 py-3 rounded-full font-semibold text-lg
@@ -161,17 +237,31 @@ const page = ({ params }) => {
             <div className="border h-2/5 rounded-3xl flex items-center justify-center">
               {gamestarted ? (
                 <h1 className="text-3xl text-center font-bold">Word</h1>
-              ) : (
+              ) : isHost ? (
                 <button
                   className="
-          cursor-pointerbg-gradient-to-r from-green-600 to-emerald-600
-          text-white px-6 py-3 rounded-full font-semibold text-lg
-          shadow-lg hover:scale-110 transition-transform duration-300
-          hover:shadow-[0_0_25px_#10B981]
-        "
+                    cursor-pointer bg-gradient-to-r from-green-500 to-teal-500
+                    text-white px-6 py-3 rounded-full font-semibold text-lg
+                    shadow-lg hover:scale-105 transition-transform duration-200
+                  "
                 >
                   Start Game
                 </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      Buzzer();
+                    }}
+                    className="
+                    cursor-pointer bg-gradient-to-r from-green-500 to-teal-500
+                    text-white px-6 py-3 rounded-full font-semibold text-lg
+                    shadow-lg hover:scale-105 transition-transform duration-200
+                  "
+                  >
+                    BUZZ HOST
+                  </button>
+                </>
               )}
             </div>
 
