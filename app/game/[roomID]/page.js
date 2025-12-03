@@ -1,11 +1,9 @@
 "use client";
 import React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Nav from "@/app/components/nav";
-import { useSession, signIn, signOut } from "next-auth/react";
-import { useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { getroomdata } from "@/app/action/room";
-import { io, Socket } from "socket.io-client";
 import { useRouter } from "next/navigation";
 import socket from "@/app/socket";
 import { fetchuser } from "@/app/action/interaction";
@@ -13,7 +11,7 @@ import { toast } from "react-toastify";
 
 const page = ({ params }) => {
   const [players, setPlayers] = useState([]);
-  const [playerinfo, setPlayerinfo] = useState([]);
+  const [playerinfo, setPlayerinfo] = useState(null);
   const { data: session, status } = useSession();
   const [gamestarted, setGamestarted] = useState(false);
   const [isHost, setIsHost] = useState(false);
@@ -32,14 +30,12 @@ const page = ({ params }) => {
     async function getroom() {
       const res = await getroomdata(params.roomID);
       if (res.status === 200) {
-        setPlayers(res.room.players);
+        setPlayers(res.room.players || []);
         console.log("Room data:", res.room.players);
-        for (let player of res.room.players) {
-          if (player.email === session.user.email && player.role === "host") {
-            setIsHost(true);
-          }
-        }
-        console.log("Is Host:", isHost);
+        const hostPlayer = (res.room.players || []).find(
+          (p) => p.email === session?.user?.email && p.role === "host"
+        );
+        setIsHost(!!hostPlayer);
       } else {
         console.log("Room not found");
         toast.error("Room not found");
@@ -49,14 +45,13 @@ const page = ({ params }) => {
     if (session?.user?.email) {
       getroom();
     }
-  }, [session, params.roomID]);
+  }, [session, params.roomID, router]);
 
   useEffect(() => {
     async function getplayerinfo() {
       const res = await fetchuser(session.user?.email);
       if (res.status === 200) {
         setPlayerinfo(res.user);
-        // console.log("User found:", res.user);
       } else {
         setPlayerinfo(null);
         console.log("User not found");
@@ -92,8 +87,8 @@ const page = ({ params }) => {
     try {
       socket.emit("BUZZED", {
         roomID: roomId,
-        username: playerinfo.username,
-        email: playerinfo.email,
+        username: playerinfo?.username,
+        email: playerinfo?.email,
       });
       toast.info("Buzzed the host!");
     } catch (err) {
@@ -131,23 +126,24 @@ const page = ({ params }) => {
     } catch (err) {
       console.error("Error setting up BUZZES listener:", err);
     }
-  }, [])
-  
+  }, []);
 
   const leaveroomhandling = () => {
     const roomid = params.roomID;
-    // console.log("Room id which we are leaving is"+params.roomID)
     if (!session?.user?.email) {
       toast.error("Please login first");
       return;
     }
 
     if (!socket.connected) {
-      connectSocket();
+      try {
+        socket.connect();
+      } catch (err) {
+        console.error("Socket connect error:", err);
+      }
     }
 
     try {
-      // console.log(session.user.email + "is trying to leave room with id"+roomid);
       socket.emit("leave-room", roomid, session.user.email);
 
       socket.on("error-leaving-room", (roomId, email) => {
@@ -165,83 +161,69 @@ const page = ({ params }) => {
   return (
     <>
       <Nav />
-      <div className="flex justify-center mt-30 flex-col items-center">
+      <div className="flex justify-center mt-30 flex-col items-center w-full">
         {/* Header Section */}
-        <div className="flex justify-center gap-250 items-center relative w-full">
+        <div className="flex justify-center gap-250 items-center relative w-full mb-6">
           <div>
             <h1 className="text-3xl font-bold">Room ID: {params.roomID}</h1>
           </div>
           <div>
-            <img className="w-50" src="/logo.png" alt="" />
+            <img className="w-50" src="/logo.png" alt="logo" />
           </div>
 
           {/* Leave Room Button */}
           <button
-            onClick={() => {
-              leaveroomhandling();
-            }}
+            onClick={leaveroomhandling}
             className="
-            cursor-pointer
-            absolute right-10 top-1/2 -translate-y-1/2
-          bg-gradient-to-r from-red-600 to-pink-600
-          text-white px-6 py-3 rounded-full font-semibold text-lg
-          shadow-lg hover:scale-110 transition-transform duration-300
-          hover:shadow-[0_0_25px_#DC2626]
-        "
-                    >
-                        Leave Room
-                    </button>
-                </div>
+              cursor-pointer
+              absolute right-10 top-1/2 -translate-y-1/2
+              bg-gradient-to-r from-red-600 to-pink-600
+              text-white px-6 py-3 rounded-full font-semibold text-lg
+              shadow-lg hover:scale-110 transition-transform duration-300
+              hover:shadow-[0_0_25px_#DC2626]
+            "
+          >
+            Leave Room
+          </button>
+        </div>
 
-                <div className="rounded-3xl  w-[80vw] h-[80vh] flex">
-                    {/* left section */}
-                    <div className="w-1/4 h-[100%] border rounded-3xl">
-                        {/* left upper */}
-                        <div className="border rounded-3xl h-1/2">
-                            <ul className="flex flex-col h-full justify-start gap-2 p-3 overflow-y-auto">
-                                {players.map((player, index) => (
-                                    <li
-                                        key={index}
-                                        className="border rounded-3xl flex items-center justify-between p-3"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <img
-                                                className="w-12 h-12 rounded-full object-cover"
-                                                src={player.profilepic}
-                                                alt="player avatar"
-                                            />
-                                            {/* {console.log("Profile Pic", player.profilepic)} */}
-                                            <div>
-                                                <h2 className="font-semibold">
-                                                    {player.username ||
-                                                        "Player"}
-                                                </h2>
-                                                <p className="text-sm text-gray-500">
-                                                    {player.role || ""}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right font-bold">
-                                            {player.points ?? 0} pts
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
+        <div className="rounded-3xl w-[80vw] h-[80vh] flex gap-6">
+          {/* left section */}
+          <div className="w-1/4 h-[100%] border rounded-3xl flex flex-col">
+            <div className="border rounded-3xl h-1/2 overflow-hidden">
+              <ul className="flex flex-col h-full justify-start gap-2 p-3 overflow-y-auto">
+                {players.length > 0 ? (
+                  players.map((player, index) => (
+                    <li
+                      key={player.email || index}
+                      className="border rounded-3xl flex items-center justify-between p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          className="w-12 h-12 rounded-full object-cover"
+                          src={player.profilepic}
+                          alt="player avatar"
+                        />
+                        <div>
+                          <h2 className="font-semibold">
+                            {player.username || "Player"}
+                          </h2>
+                          <p className="text-sm text-gray-500">
+                            {player.role || ""}
+                          </p>
                         </div>
-                        <div className="border rounded-3xl h-1/2">
-                            <h1 className="text-3xl text-center font-bold">
-                                Leaderboard
-                            </h1>
-                        </div>
-                    </div>
-                    <div className="text-right font-bold">
-                      {player.points ?? 0} pts
-                    </div>
-                  </li>
-                ))}
+                      </div>
+                      <div className="text-right font-bold">
+                        {player.points ?? 0} pts
+                      </div>
+                    </li>
+                  ))
+                ) : (
+                  <li className="p-3 text-center text-gray-500">No players yet</li>
+                )}
               </ul>
             </div>
-            <div className="border rounded-3xl h-1/2">
+            <div className="border rounded-3xl h-1/2 flex items-center justify-center">
               <h1 className="text-3xl text-center font-bold">Leaderboard</h1>
             </div>
           </div>
@@ -262,31 +244,31 @@ const page = ({ params }) => {
                   Start Game
                 </button>
               ) : (
-                <>
-                  <button
-                    onClick={() => {
-                      Buzzer();
-                    }}
-                    className="
+                <button
+                  onClick={Buzzer}
+                  className="
                     cursor-pointer bg-gradient-to-r from-green-500 to-teal-500
                     text-white px-6 py-3 rounded-full font-semibold text-lg
                     shadow-lg hover:scale-105 transition-transform duration-200
                   "
-                  >
-                    BUZZ HOST
-                  </button>
-                </>
+                >
+                  BUZZ HOST
+                </button>
               )}
             </div>
 
-                    {/* right section */}
-                    <div className="w-1/4 h-[100%] border rounded-3xl">
-                        <h1 className="text-3xl text-center font-bold">Chat</h1>
-                    </div>
-                </div>
-            </div>
-        </>
-    );
+            {/* game area or other content */}
+            <div className="flex-1 p-4"> {/* placeholder for game UI */} </div>
+          </div>
+
+          {/* right section */}
+          <div className="w-1/4 h-[100%] border rounded-3xl p-4">
+            <h1 className="text-3xl text-center font-bold">Chat</h1>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 };
 
 export default page;
