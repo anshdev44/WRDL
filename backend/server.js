@@ -172,5 +172,6 @@ io.on("connection", (socket) => {
         return;
        }
        io.to(roomid).emit("game-started",{message:"Game is starting"})
+       console.log("Game started in room:",roomid)
     })
 })

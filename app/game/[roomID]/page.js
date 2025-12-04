@@ -137,6 +137,27 @@ const page = ({ params }) => {
         }
     }, []);
 
+    useEffect(() => {
+      if (!socket) {
+                console.warn("Socket not initialized");
+                return;
+            }
+
+            if (!socket.connected) {
+                socket.connect();
+            }
+
+      socket.on("game-started", () => {
+                alert("Game started by the host!");
+                setGamestarted(true);
+            });
+    
+      return () => {
+        socket.off("game-started");
+      }
+    }, [])
+    
+
     const leaveroomhandling = () => {
         const roomid = params.roomID;
         if (!session?.user?.email) {
@@ -176,10 +197,7 @@ const page = ({ params }) => {
                 toast.error("Error starting game");
                 console.error("Failed to start game:", roomid);
             });
-            socket.on("game-started", () => {
-                alert("Game started by the host!");
-                setGamestarted(true);
-            });
+            
         } else {
             toast.error(res.error || "Cannot start game");
             console.log(res.status);
