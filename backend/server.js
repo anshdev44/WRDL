@@ -16,6 +16,33 @@ httpServer.listen(4000, () => {
 
 const roomChats = new Map();
 const MAX_HISTORY = 50;
+const wordList = [
+  "apple", "beach", "brain", "bread", "brush", 
+  "chair", "chest", "chord", "click", "clock", 
+  "cloud", "dance", "diary", "drink", "drive", 
+  "earth", "feast", "field", "fruit", "glass", 
+  "grape", "green", "ghost", "guide", "heart", 
+  "house", "human", "juice", "light", "lemon", 
+  "melon", "money", "music", "night", "ocean", 
+  "party", "piano", "pilot", "plane", "plant", 
+  "plate", "phone", "power", "quiet", "radio", 
+  "river", "robot", "scene", "scope", "score", 
+  "shape", "share", "shirt", "shoe", "smile", 
+  "snake", "space", "spoon", "star", "stone", 
+  "storm", "sugar", "table", "taste", "tiger", 
+  "toast", "touch", "tower", "track", "trade", 
+  "train", "truck", "uncle", "unity", "value", 
+  "video", "virus", "voice", "waste", "watch", 
+  "water", "whale", "white", "woman", "world", 
+  "write", "youth", "zebra"
+];
+const roomWord=new Map();
+const guessedLetters=new Map();
+
+const chooserandomeword=()=>{
+    const randomIndex = Math.floor(Math.random() * wordList.length);
+    return wordList[randomIndex];
+}
 
 io.on("connection", (socket) => {
     console.log("✅ A user just connected", socket.id);
@@ -237,5 +264,14 @@ io.on("connection", (socket) => {
         io.to(roomid).emit("receive-message", roomChats.get(roomid));
         
     });
+    socket.on("send-word",(roomid)=>{
+        const word=chooserandomeword();
+        io.to(roomid).emit("receive-word",word);
+        roomWord.set(roomid,word);
+        guessedLetters.set(roomid,[]);
+        console.log("roomword map is updated",roomWord);
+        console.log("guessed letters map is updated",{guessedLetters,roomWord});
+        console.log("Sent word",word,"to room",roomid);
+    })
  
 })

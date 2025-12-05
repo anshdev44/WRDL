@@ -22,6 +22,8 @@ const page = ({ params }) => {
     const [message, setMessage] = useState("");
     const [roomMessages, setRoomMessages] = useState([]);
     const router = useRouter();
+    const [word, setword] = useState("")
+    const [guessedletters,setguessedletters]=useState([]);
     // const roomchats=new Map();
     
     useEffect(() => {
@@ -235,11 +237,32 @@ const page = ({ params }) => {
         }
     };
 
+    useEffect(() => {
+      socket.on("receive-word",(word)=>{
+            setword(word);
+            guessedletters([]);
+            if (word) {
+                console.log("Received word from backend:", word);
+            } else {
+                console.warn("Received word is undefined or empty");
+            }
+        });
+        return () => {
+            socket.off("receive-word");
+        };
+    }, [])
+    
+
+    const giveword=()=>{
+        socket.emit("send-word", params.roomID);
+    }
+
     const startgamehandling = async () => {
         const roomid = params.roomID;
         const res = await startgamerendering(roomid);
         if (res.status === 200) {
             socket.emit("start-game", roomid);
+            giveword();
             socket.on("error-starting-game", (roomid) => {
                 toast.error("Error starting game");
                 console.error("Failed to start game:", roomid);
@@ -411,9 +434,13 @@ const page = ({ params }) => {
                     <div className="rounded-3xl w-1/2 h-[100%] border flex flex-col">
                         <div className="border h-2/5 rounded-3xl flex items-center justify-center">
                             {gamestarted ? (
-                                <h1 className="text-3xl text-center font-bold">
-                                    Word
-                                </h1>
+                                  <>
+                                  {word.split('').map((char, index) => (
+                                  <span key={index} className="mx-1">
+                                  {guessedletters.includes(char) ? char : "_"}
+                                  </span>
+                                ))}
+                                  </>
                             ) : isHost ? (
                                 <button
                                     className="
