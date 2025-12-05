@@ -1,6 +1,6 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
-// import leaveroombackend from "../app/action/room.js";
+
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
@@ -13,6 +13,9 @@ const io = new Server(httpServer, {
 httpServer.listen(4000, () => {
     console.log("✅ Server is listening on port 4000");
 });
+
+const roomChats = new Map();
+const MAX_HISTORY = 50;
 
 io.on("connection", (socket) => {
     console.log("✅ A user just connected", socket.id);
@@ -153,10 +156,10 @@ io.on("connection", (socket) => {
         const username = payload && typeof payload === "object" ? payload.username : undefined;
         const email = payload && typeof payload === "object" ? payload.email : undefined;
 
-        console.log("BUZZED event received from", socket.id, "payload:", payload);
+        // console.log("BUZZED event received from", socket.id, "payload:", payload);
 
         if (roomID) {
-           // Emit to all sockets in the room (including the sender if needed)
+           
             console.log("Emitting BUZZES to room:", roomID, { id: socket.id, username, email });
             io.to(roomID).emit("BUZZES", { id: socket.id, username, email });
         } else {
@@ -174,4 +177,55 @@ io.on("connection", (socket) => {
        io.to(roomid).emit("game-started",{message:"Game is starting"})
        console.log("Game started in room:",roomid)
     })
+
+    socket.on("send-message",(data)=>{
+        const message=data.message
+        const roomID=data.roomID;
+        const username=data.username;
+        console.log("Received message to send:", message, roomID, username);
+        if(!roomID || !message || !username){
+            socket.emit("error-sending-message",{error:"Missing data to send message"});
+            return;
+        }
+
+        if(!roomChats.has(roomID)){
+            roomChats.set(roomID,[{from:username,msg:message}]);
+        }
+
+        const obj=roomChats.get(roomID);
+        obj.push({from:username,msg:message});
+        if(obj.length > MAX_HISTORY){
+            obj.shift(); 
+        }
+        roomChats.set(roomID,obj);
+        // console.log("updated message for room:",roomID,roomChats.get(roomID));
+        
+
+        // console.log("✅", roomChats);
+      
+        try {
+            const plain = Object.fromEntries(roomChats);
+          
+            io.to(roomID).emit("send-message-map", plain);
+        } catch (err) {
+            console.error("Error serializing roomChats:", err);
+        }
+
+       
+        io.to(roomID).emit("receive-message", roomChats.get(roomID) || []);
+
+    });
+
+    socket.on("send-messages-backend", (roomid)=>{
+        try {
+            const plain = Object.fromEntries(roomChats);
+          
+            io.to(roomid).emit("send-message-map", plain);
+        } catch (err) {
+            console.error("Error serializing roomChats:", err);
+        }
+        io.to(roomid).emit("receive-message", roomChats.get(roomid));
+        
+    });
+ 
 })

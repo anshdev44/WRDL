@@ -19,7 +19,19 @@ const page = ({ params }) => {
     const [gamestarted, setGamestarted] = useState(false);
     const [isHost, setIsHost] = useState(false);
     const [roomInfo, setRoomInfo] = useState(null);
+    const [message, setMessage] = useState("");
+    const [roomMessages, setRoomMessages] = useState([]);
     const router = useRouter();
+    // const roomchats=new Map();
+    
+    useEffect(() => {
+      socket.emit("send-messages-backend",params.roomID);
+    
+      return () => {
+        socket.off("send-messages-backend",(params.roomID));
+      }
+    }, [])
+    
 
     useEffect(() => {
         if (status === "loading") return;
@@ -36,7 +48,7 @@ const page = ({ params }) => {
             setRoomInfo(res.room);
             if (res.status === 200) {
                 setPlayers(res.room.players || []);
-                console.log("Room data:", res.room.players);
+                // console.log("Room data:", res.room.players);
                 const hostPlayer = (res.room.players || []).find(
                     (p) => p.email === session?.user?.email && p.role === "host"
                 );
@@ -67,6 +79,24 @@ const page = ({ params }) => {
             getplayerinfo();
         }
     }, [session]);
+
+    // Ensure this client socket joins the room when playerinfo is ready
+    useEffect(() => {
+        if (!playerinfo || !session?.user?.email) return;
+        if (!socket.connected) {
+            try {
+                socket.connect();
+            } catch (err) {
+                console.error("Socket connect error while joining room:", err);
+            }
+        }
+        try {
+            socket.emit("join-room", params.roomID, playerinfo.username, session.user.email);
+            console.log("Emitted join-room for room", params.roomID, playerinfo.username);
+        } catch (err) {
+            console.error("Error emitting join-room:", err);
+        }
+    }, [playerinfo, session, params.roomID]);
     // console.log("roomid is ", params.roomID);
 
     const Buzzer = () => {
@@ -206,6 +236,78 @@ const page = ({ params }) => {
         }
     };
 
+    
+   useEffect(() => {
+    if (!socket) {
+        console.warn("Socket not initialized");
+        return;
+    }
+
+    if (!socket.connected) {
+        socket.connect();
+    }
+
+    const handleReceiveMessage = (roomChats) => {
+        console.log("Received message data:", roomChats);
+
+        if (!roomChats) {
+            console.warn("roomChats is null or undefined");
+            return;
+        }
+        if (Array.isArray(roomChats)) {
+            const normalized = roomChats.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '' }));
+            setRoomMessages(normalized);
+            return;
+        }
+        if (typeof roomChats === 'object') {
+            const obj = roomChats[params.roomID] || roomChats[params.roomId] || roomChats.roomID;
+            console.log("Messages for this room (from map):", obj);
+            if (Array.isArray(obj)) {
+                const normalized = obj.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '' }));
+                setRoomMessages(normalized);
+                return;
+            }
+        }
+
+        console.warn("No messages found for this room or invalid format");
+    };
+
+    socket.on("send-message-map", handleReceiveMessage);
+    const handleReceiveArray = (messages) => {
+        console.log("Received broadcasted messages for room:", messages);
+        if (Array.isArray(messages)) {
+            const normalized = messages.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '' }));
+            setRoomMessages(normalized);
+        }
+    };
+    socket.on("receive-message", handleReceiveArray);
+
+    return () => {
+        socket.off("send-message-map", handleReceiveMessage);
+        socket.off("receive-message", handleReceiveArray);
+    };
+}, [params.roomID]);
+    
+
+    const sendmessage = async () => {
+        console.log("Sending message:", message);
+        if (!socket.connected) {
+            try {
+                socket.connect();
+            } catch (err) {
+                console.error("Socket connect error:", err);
+            }
+        }
+        const res = await getroomdata(params.roomID);
+        if(res.status !== 200){
+            toast.error("Room not found");
+            return;
+        }
+        socket.emit("send-message",({message:message, roomID:params.roomID,username: playerinfo?.username} ));
+        console.log("Message sent:", message,params.roomID, playerinfo?.username);
+        setMessage("");
+    }
+
     return (
         <>
             <Nav />
@@ -251,7 +353,7 @@ const page = ({ params }) => {
                                             <div className="flex items-center gap-3">
                                                 <Link
                                                     href={`/profile/${player.username}`}
-                                                    target="_blank"
+                                                    target="_blank" 
                                                 >
                                                     <img
                                                         className="w-12 h-12 rounded-full object-cover"
@@ -310,7 +412,7 @@ const page = ({ params }) => {
                                 </button>
                             ) : (
                                 <button
-                                    onClick={Buzzer}
+                                    onClick={()=>{Buzzer()}}
                                     className="
                     cursor-pointer bg-gradient-to-r from-green-500 to-teal-500
                     text-white px-6 py-3 rounded-full font-semibold text-lg
@@ -330,8 +432,39 @@ const page = ({ params }) => {
                     </div>
 
                     {/* right section */}
-                    <div className="w-1/4 h-[100%] border rounded-3xl p-4">
-                        <h1 className="text-3xl text-center font-bold">Chat</h1>
+                    <div className="w-1/4 h-[100%] border rounded-3xl p-4 flex flex-col">
+                        <div className="flex-1 overflow-y-auto mb-4 w-full">
+                            {roomMessages && roomMessages.length > 0 ? (
+                                roomMessages.map((m, i) => (
+                                    <div key={i} className="mb-2">
+                                        <strong className="block">{m.from || 'Anonymous'}</strong>
+                                        <div className="text-sm text-white">{m.text}</div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-gray-500">No messages yet</div>
+                            )}
+                        </div>
+                        <div className="flex items-center">
+                            <input 
+                                placeholder="Enter Chat or Guess Word" 
+                                className="bg-black text-white w-full p-2 rounded border" 
+                                type="text"
+                                onChange={(e)=>{setMessage(e.target.value)}}
+                                 onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    sendmessage();
+                                  }
+                                }}
+                                value={message}
+                            />
+                            <img 
+                                src="/send.png" 
+                                alt="Send" 
+                                className="ml-2 cursor-pointer w-10 h-10" 
+                                onClick={()=>{sendmessage()}}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
