@@ -25,12 +25,29 @@ const page = ({ params }) => {
     // const roomchats=new Map();
     
     useEffect(() => {
-      socket.emit("send-messages-backend",params.roomID);
+      if (!socket) {
+        console.warn("Socket not initialized");
+        return;
+      }
+
+      if (!socket.connected) {
+        socket.connect();
+      }
+
+      const handleReceiveMessages = (data) => {
+        console.log("Messages from backend:", data);
+      };
+
+      socket.on("send-messages-backend", handleReceiveMessages);
     
       return () => {
-        socket.off("send-messages-backend",(params.roomID));
+        socket.off("send-messages-backend", handleReceiveMessages);
       }
-    }, [])
+    }, [params.roomID])
+    
+    // useEffect(() => {
+    //   socket.emit("store-room-data",params.roomID);
+    // }, [])
     
 
     useEffect(() => {
@@ -341,8 +358,8 @@ const page = ({ params }) => {
 
                 <div className="rounded-3xl w-[80vw] h-[80vh] flex gap-6">
                     {/* left section */}
-                    <div className="w-1/4 h-[100%] border rounded-3xl flex flex-col">
-                        <div className="border rounded-3xl h-1/2 overflow-hidden">
+                    <div className="w-1/4 h-[50%] border rounded-3xl flex flex-col">
+                        <div className="border rounded-3xl h-full overflow-hidden">
                             <ul className="flex flex-col h-full justify-start gap-2 p-3 overflow-y-auto">
                                 {players.length > 0 ? (
                                     players.map((player, index) => (
@@ -383,11 +400,11 @@ const page = ({ params }) => {
                                 )}
                             </ul>
                         </div>
-                        <div className="border rounded-3xl h-1/2 flex items-center justify-center">
+                        {/* <div className="border rounded-3xl h-1/2 flex items-center justify-center">
                             <h1 className="text-3xl text-center font-bold">
                                 Leaderboard
                             </h1>
-                        </div>
+                        </div> */}
                     </div>
 
                     {/* middle section */}
@@ -436,7 +453,7 @@ const page = ({ params }) => {
                         <div className="flex-1 overflow-y-auto mb-4 w-full">
                             {roomMessages && roomMessages.length > 0 ? (
                                 roomMessages.map((m, i) => (
-                                    <div key={i} className="mb-2">
+                                    <div key={i} className="mb-2 flex items-center  gap-3.5">
                                         <strong className="block">{m.from || 'Anonymous'}</strong>
                                         <div className="text-sm text-white">{m.text}</div>
                                     </div>

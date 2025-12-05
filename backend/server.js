@@ -37,9 +37,9 @@ io.on("connection", (socket) => {
         }
     });
     socket.on("join-room", async (roomID, username, email) => {
-        console.log(
-            `✅${username} is trying to join room with id ${roomID} and his email is ${email}`
-        );
+        // console.log(
+        //     `✅${username} is trying to join room with id ${roomID} and his email is ${email}`
+        // );
         try {
             const myHeaders = new Headers();
             myHeaders.append("Content-Type", "application/json");
@@ -119,12 +119,22 @@ io.on("connection", (socket) => {
                     data.message &&
                     data.message.includes("empty room was deleted")
                 ) {
+                    //room deleted as it was empty
                     io.in(roomID).emit("room-deleted", { reason: "empty" });
                     io.in(roomID).socketsLeave(roomID);
+                    const obj=roomChats.get(roomID);
+                    if(obj){
+                      roomChats.delete(roomID);
+                    }
                 }
             } else if (res.status === 201) {
+                //host left and room deleted
                 io.to(roomID).emit("room-deleted", { reason: "host-left" });
                 io.in(roomID).socketsLeave(roomID);
+                const obj=roomChats.get(roomID);
+                if(obj){
+                    roomChats.delete(roomID);
+                }
             } else {
                 socket.emit("error-leaving-room", {
                     error: data.error || "Some Error occured at our side",
@@ -201,7 +211,7 @@ io.on("connection", (socket) => {
         // console.log("updated message for room:",roomID,roomChats.get(roomID));
         
 
-        // console.log("✅", roomChats);
+        console.log("✅", roomChats);
       
         try {
             const plain = Object.fromEntries(roomChats);
