@@ -43,6 +43,8 @@ const chooserandomeword=()=>{
     const randomIndex = Math.floor(Math.random() * wordList.length);
     return wordList[randomIndex];
 }
+const roomTimers=new Map();
+const roomTimerIntervals=new Map();
 
 io.on("connection", (socket) => {
     console.log("✅ A user just connected", socket.id);
@@ -273,5 +275,54 @@ io.on("connection", (socket) => {
         console.log("guessed letters map is updated",{guessedLetters,roomWord});
         console.log("Sent word",word,"to room",roomid);
     })
+
+    socket.on("start-timer",(roomid)=>{
+        // Clear any existing timer for this room
+        if(roomTimerIntervals.has(roomid)){
+            clearInterval(roomTimerIntervals.get(roomid));
+            roomTimerIntervals.delete(roomid);
+        }
+        
+        // Initialize timer to 2 minutes (2:00)
+        let minutes = 2;
+        let seconds = 0;
+        let obj=[{
+            minutes: minutes,
+            seconds: seconds
+        }]
+        roomTimers.set(roomid,obj);
+        io.to(roomid).emit("timer-started",obj);
+        
+        // Start the countdown timer automatically
+        startTimer(roomid, minutes, seconds);
+    })
  
 })
+
+const startTimer=(roomid,minutes,seconds)=>{
+    // Clear any existing timer for this room
+    if(roomTimerIntervals.has(roomid)){
+        clearInterval(roomTimerIntervals.get(roomid));
+    }
+    
+    const timerInterval=setInterval(()=>{
+        if(seconds === 0){
+            if(minutes === 0){
+                clearInterval(timerInterval);
+                roomTimerIntervals.delete(roomid);
+                console.log(`Timer finished for room: ${roomid}`);
+                return;
+            }   
+            minutes--;
+            seconds = 59;
+        }
+        else{
+            seconds--;
+        }
+        console.log(`Time left for roomid:${roomid}-> ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+        io.to(roomid).emit("timer-update", minutes, seconds);
+    },1000);
+    
+    // Store the interval so we can clear it if needed
+    roomTimerIntervals.set(roomid, timerInterval);
+}

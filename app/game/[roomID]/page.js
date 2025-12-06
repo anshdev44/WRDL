@@ -24,6 +24,8 @@ const page = ({ params }) => {
     const router = useRouter();
     const [word, setword] = useState("")
     const [guessedletters,setguessedletters]=useState([]);
+    const [timerstarted, setTimerstarted] = useState(false);
+    const [timerobj, setTimerobj] = useState([]);
     // const roomchats=new Map();
     
     useEffect(() => {
@@ -240,7 +242,7 @@ const page = ({ params }) => {
     useEffect(() => {
       socket.on("receive-word",(word)=>{
             setword(word);
-            guessedletters([]);
+            // guessedletters([]);
             if (word) {
                 console.log("Received word from backend:", word);
             } else {
@@ -262,6 +264,7 @@ const page = ({ params }) => {
         const res = await startgamerendering(roomid);
         if (res.status === 200) {
             socket.emit("start-game", roomid);
+            socket.emit("start-timer",roomid);
             giveword();
             socket.on("error-starting-game", (roomid) => {
                 toast.error("Error starting game");
@@ -275,6 +278,61 @@ const page = ({ params }) => {
             alert(res.status);
         }
     };
+
+    useEffect(() => {
+      socket.on("timer-started",(obj)=>{
+        setTimerstarted(true);
+        setTimerobj([{minutes:obj[0].minutes,seconds:obj[0].seconds}])
+        console.log("Timer started data:",obj);
+      })
+    
+      return () => {
+        socket.off("timer-started");
+      }
+    }, [])
+
+    useEffect(() => {
+      socket.on("timer-update",(minutes,seconds)=>{
+        console.log("Timer update data:",minutes,seconds);
+        setTimerobj([{minutes:minutes,seconds:seconds}])
+      })
+      return () => {
+        socket.off("timer-update");
+      }
+    }, [])
+    
+    
+
+    // useEffect(() => {
+    //   socket.on("timer-started",(data)=>{
+    //     console.log("Timer started data:",data);
+    //     let minutes=data[0].minutes;
+    //     let seconds=data[0].seconds;
+    //     setTimerobj([{minutes:minutes,seconds:seconds}])
+    //     setTimerstarted(true);
+    //     const timerInterval=setInterval(()=>{
+    //         if(seconds ===0){
+    //             if(minutes ===0){
+    //                 clearInterval(timerInterval);
+    //                 return;
+    //             }   
+    //             minutes--;
+    //             seconds=59;
+    //         }
+    //         else{
+    //             seconds--;
+    //         }
+    //         // console.log(`Time left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+    //          setTimerobj([{minutes:minutes,seconds:seconds}])
+    //         socket.emit("update-timer",params.roomID,minutes,seconds);
+    //     },1000)
+    //   })
+    //   setTimerstarted(false);
+    //   return () => {
+    //     socket.off("timer-started");
+    //   }
+    // }, [])
+    
 
     
    useEffect(() => {
@@ -435,12 +493,19 @@ const page = ({ params }) => {
                         <div className="border h-2/5 rounded-3xl flex items-center justify-center">
                             {gamestarted ? (
                                   <>
-                                  {word.split('').map((char, index) => (
-                                  <span key={index} className="mx-1">
-                                  {guessedletters.includes(char) ? char : "_"}
-                                  </span>
-                                ))}
-                                  </>
+  {timerstarted && timerobj.length > 0 && (
+    <div className="  bg-black bg-opacity-50 text-white px-4 py-2 rounded-full text-lg font-mono">
+      Timer: {timerobj[0].minutes}:
+      {timerobj[0].seconds.toString().padStart(2, "0")}
+    </div>
+  )}
+
+  {word.split("").map((char, index) => (
+    <span key={index} className="mx-1 text-3xl">
+      {guessedletters.includes(char) ? char : "_"}
+    </span>
+  ))}
+</>
                             ) : isHost ? (
                                 <button
                                     className="
