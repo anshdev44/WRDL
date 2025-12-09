@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Nav from "@/app/components/nav";
 import { useSession } from "next-auth/react";
 import { getroomdata } from "@/app/action/room";
@@ -23,11 +23,13 @@ const page = ({ params }) => {
     const [roomMessages, setRoomMessages] = useState([]);
     const router = useRouter();
     const [word, setword] = useState("")
+    const wordRef = useRef("");
     const [guessedletters,setguessedletters]=useState([]);
     const [timerstarted, setTimerstarted] = useState(false);
+    const timerstartedRef = useRef(false);
     const [timerobj, setTimerobj] = useState([]);
     // const roomchats=new Map();
-    
+     
     useEffect(() => {
       if (!socket) {
         console.warn("Socket not initialized");
@@ -113,7 +115,7 @@ const page = ({ params }) => {
         }
         try {
             socket.emit("join-room", params.roomID, playerinfo.username, session.user.email);
-            console.log("Emitted join-room for room", params.roomID, playerinfo.username);
+            // console.log("Emitted join-room for room", params.roomID, playerinfo.username);
         } catch (err) {
             console.error("Error emitting join-room:", err);
         }
@@ -132,7 +134,7 @@ const page = ({ params }) => {
 
         const roomId = params.roomID;
 
-        console.log("Buzzer clicked for room:", roomId);
+        // console.log("Buzzer clicked for room:", roomId);
 
         // ensure socket is connected
         if (!socket.connected) {
@@ -167,9 +169,9 @@ const page = ({ params }) => {
                 socket.connect();
             }
 
-            console.log("Setting up BUZZES listener");
+            // console.log("Setting up BUZZES listener");
             const handleBuzzes = (data) => {
-                console.log("Buzz data received:", data);
+                // console.log("Buzz data received:", data);
                 alert(`Player ${data.username} has buzzed!`);
             };
 
@@ -178,7 +180,7 @@ const page = ({ params }) => {
             return () => {
                 try {
                     socket.off("BUZZES", handleBuzzes);
-                    console.log("Removed BUZZES listener");
+                    // console.log("Removed BUZZES listener");
                 } catch (err) {
                     console.error("Error removing BUZZES listener:", err);
                 }
@@ -207,7 +209,25 @@ const page = ({ params }) => {
         socket.off("game-started");
       }
     }, [])
+
+    useEffect(() => {
+      console.log("Checking if game has started for room:", params.roomID);
+      socket.emit("is-game-started",(params.roomID));
+      return () => {
+       socket.off("is-game-started");
+      }
+    }, [])
+
+    useEffect(() => {
+      socket.on("game-has-started",()=>{
+        setGamestarted(true);
+        console.log("Game has started - notified by backend");
+      });
     
+      return () => {
+        socket.off("game-has-started");
+      }
+    }, [])
 
     const leaveroomhandling = () => {
         const roomid = params.roomID;
@@ -242,6 +262,7 @@ const page = ({ params }) => {
     useEffect(() => {
       socket.on("receive-word",(word)=>{
             setword(word);
+            wordRef.current = word;
             // guessedletters([]);
             if (word) {
                 console.log("Received word from backend:", word);
@@ -282,10 +303,11 @@ const page = ({ params }) => {
     useEffect(() => {
       socket.on("timer-started",(obj)=>{
         setTimerstarted(true);
+        timerstartedRef.current = true;
         setTimerobj([{minutes:obj[0].minutes,seconds:obj[0].seconds}])
         console.log("Timer started data:",obj);
       })
-    
+
       return () => {
         socket.off("timer-started");
       }
@@ -293,45 +315,29 @@ const page = ({ params }) => {
 
     useEffect(() => {
       socket.on("timer-update",(minutes,seconds)=>{
-        console.log("Timer update data:",minutes,seconds);
-        setTimerobj([{minutes:minutes,seconds:seconds}])
+        // console.log("Timer update data:",minutes,seconds);
+        if (timerstartedRef.current) {
+          setTimerobj([{minutes:minutes,seconds:seconds}])
+        }
       })
       return () => {
         socket.off("timer-update");
       }
     }, [])
     
-    
-
-    // useEffect(() => {
-    //   socket.on("timer-started",(data)=>{
-    //     console.log("Timer started data:",data);
-    //     let minutes=data[0].minutes;
-    //     let seconds=data[0].seconds;
-    //     setTimerobj([{minutes:minutes,seconds:seconds}])
-    //     setTimerstarted(true);
-    //     const timerInterval=setInterval(()=>{
-    //         if(seconds ===0){
-    //             if(minutes ===0){
-    //                 clearInterval(timerInterval);
-    //                 return;
-    //             }   
-    //             minutes--;
-    //             seconds=59;
-    //         }
-    //         else{
-    //             seconds--;
-    //         }
-    //         // console.log(`Time left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
-    //          setTimerobj([{minutes:minutes,seconds:seconds}])
-    //         socket.emit("update-timer",params.roomID,minutes,seconds);
-    //     },1000)
-    //   })
-    //   setTimerstarted(false);
-    //   return () => {
-    //     socket.off("timer-started");
-    //   }
-    // }, [])
+   useEffect(() => {
+     socket.on("timer-ended",(roomid)=>{
+        setTimerstarted(false);
+        timerstartedRef.current = false;
+        setTimerobj([]);
+        setGamestarted(false);
+        setword("");
+        setguessedletters([]);
+        console.log("Timer ended for room:",roomid);
+     })
+    console.log("timer ended successfully");
+   }, [])
+   
     
 
     
@@ -401,10 +407,59 @@ const page = ({ params }) => {
             toast.error("Room not found");
             return;
         }
-        socket.emit("send-message",({message:message, roomID:params.roomID,username: playerinfo?.username} ));
+        if(gamestarted && word && message.length===word.length){
+           if(message.toLowerCase()===word.toLowerCase()){
+            // toast.success();
+            setguessedletters(word.split(""));
+            socket.emit("correct-guess",({roomID:params.roomID,username: playerinfo?.username}));
+            console.log("Correct guess sent:", message,params.roomID, playerinfo?.username);
+           }
+           else{
+            socket.emit("wrong-guess",({roomID:params.roomID,username: playerinfo?.username}));
+            toast.info("Wrong Guess!");
+            console.log("Wrong guess sent:", message,params.roomID, playerinfo?.username);
+           }
+        }
+        else{
+
+            socket.emit("send-message",({message:message, roomID:params.roomID,username: playerinfo?.username} ));
+        }
         console.log("Message sent:", message,params.roomID, playerinfo?.username);
         setMessage("");
     }
+
+    useEffect(() => {
+      socket.on("player-guessed-correctly",(data)=>{
+        alert(`Player ${data.username} guessed the word correctly!`);
+        // console.log("word to reveal:",wordRef.current);
+        // console.log("Player guessed correctly data:",data);
+        setguessedletters(wordRef.current.split(""));
+        if (!socket.connected) {
+            socket.connect();
+        }
+        socket.emit("stop-timer",params.roomID);
+        setTimerstarted(false);
+        setTimerobj([]);
+
+      })
+      return () => {
+        socket.off("player-guessed-correctly");
+      }
+    }, [])
+
+    useEffect(() => {
+      socket.on("stopped-timer",(roomid)=>{
+        console.log("timer stopped");
+        setTimerstarted(false);
+        timerstartedRef.current = false;
+        setTimerobj([]);
+      });
+      return () => {
+        socket.off("stopped-timer")
+      }
+    }, [])
+    
+    
 
     return (
         <>

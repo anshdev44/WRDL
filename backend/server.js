@@ -38,13 +38,14 @@ const wordList = [
 ];
 const roomWord=new Map();
 const guessedLetters=new Map();
+const roomstarted=new Map();
+const roomTimers=new Map();
+const roomTimerIntervals=new Map();
 
 const chooserandomeword=()=>{
     const randomIndex = Math.floor(Math.random() * wordList.length);
     return wordList[randomIndex];
 }
-const roomTimers=new Map();
-const roomTimerIntervals=new Map();
 
 io.on("connection", (socket) => {
     console.log("✅ A user just connected", socket.id);
@@ -101,12 +102,12 @@ io.on("connection", (socket) => {
                 socket
                     .to(roomID)
                     .emit(username, "was unable to connect to the room");
-                console.log(
-                    username,
-                    "tried to connect with room id",
-                    roomID,
-                    "but was unable to connect"
-                );
+                // console.log(
+                //     username,
+                //     "tried to connect with room id",
+                //     roomID,
+                //     "but was unable to connect"
+                // );
             }
         } catch (err) {}
     });
@@ -213,6 +214,8 @@ io.on("connection", (socket) => {
         io.emit("error-starting-game",{ error: "Missing roomID"});
         return;
        }
+       roomstarted.set(roomid,true);
+       console.log("roomtarted map is updated",roomstarted);
        io.to(roomid).emit("game-started",{message:"Game is starting"})
        console.log("Game started in room:",roomid)
     })
@@ -283,7 +286,7 @@ io.on("connection", (socket) => {
             roomTimerIntervals.delete(roomid);
         }
         
-        // Initialize timer to 2 minutes (2:00)
+       
         let minutes = 2;
         let seconds = 0;
         let obj=[{
@@ -293,9 +296,36 @@ io.on("connection", (socket) => {
         roomTimers.set(roomid,obj);
         io.to(roomid).emit("timer-started",obj);
         
-        // Start the countdown timer automatically
+      
         startTimer(roomid, minutes, seconds);
     })
+
+    socket.on("is-game-started",(roomid)=>{
+        console.log("is-game-started event received for room:",roomid);
+        const started=roomstarted.get(roomid);
+        // console.log("is-game-started checked for room:",roomid,"->",started);
+       if(started){
+        socket.emit("game-has-started");
+       }
+    });
+
+    socket.on("correct-guess",(data)=>{
+        const roomid=data.roomID;
+        const username=data.username;
+
+        io.to(roomid).emit("player-guessed-correctly", {username, roomid});
+        console.log("Player",username,"guessed correctly in room:",roomid);
+    })
+
+    socket.on("stop-timer",(roomid)=>{
+        if(roomTimerIntervals.has(roomid)){
+            clearInterval(roomTimerIntervals.get(roomid));
+            roomTimerIntervals.delete(roomid);
+            console.log(`Timer stopped for room: ${roomid}`);
+        }
+        io.to(roomid).emit("stopped-timer",(roomid));
+    })
+
  
 })
 
@@ -306,23 +336,39 @@ const startTimer=(roomid,minutes,seconds)=>{
     }
     
     const timerInterval=setInterval(()=>{
+        if (!roomTimerIntervals.has(roomid)) {
+            return;
+        }
         if(seconds === 0){
             if(minutes === 0){
                 clearInterval(timerInterval);
                 roomTimerIntervals.delete(roomid);
                 console.log(`Timer finished for room: ${roomid}`);
                 return;
-            }   
+            }
             minutes--;
             seconds = 59;
         }
         else{
             seconds--;
         }
-        console.log(`Time left for roomid:${roomid}-> ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+        let obj=[{
+            minutes: minutes,
+            seconds: seconds
+        }]
+        roomTimers.set(roomid,obj);
+        // console.log(`Time left for roomid:${roomid}-> ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
         io.to(roomid).emit("timer-update", minutes, seconds);
     },1000);
-    
+    // io.to(roomid).emit("timer-ended",(roomid=>{
+    //     clearInterval(timerInterval);
+    //     roomTimerIntervals.delete(roomid);
+    //     roomstarted.delete(roomid);
+    //     guessedLetters.delete(roomid);
+    //     roomWord.delete(roomid);
+    //     roomTimers.delete(roomid);
+    //     console.log(`Timer ended for room: ${roomid}`);
+    // }));
     // Store the interval so we can clear it if needed
     roomTimerIntervals.set(roomid, timerInterval);
 }
