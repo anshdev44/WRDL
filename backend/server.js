@@ -224,23 +224,24 @@ io.on("connection", (socket) => {
         const message=data.message
         const roomID=data.roomID;
         const username=data.username;
+        const colour=data.colour;
         console.log("Received message to send:", message, roomID, username);
-        if(!roomID || !message || !username){
+        if(!roomID || !message || !username || !colour){
             socket.emit("error-sending-message",{error:"Missing data to send message"});
             return;
         }
 
         if(!roomChats.has(roomID)){
-            roomChats.set(roomID,[{from:username,msg:message}]);
+            roomChats.set(roomID,[{from:username,msg:message,colour:colour}]);
         }
 
         const obj=roomChats.get(roomID);
-        obj.push({from:username,msg:message});
+        obj.push({from:username,msg:message,colour:colour});
         if(obj.length > MAX_HISTORY){
             obj.shift(); 
         }
         roomChats.set(roomID,obj);
-        // console.log("updated message for room:",roomID,roomChats.get(roomID));
+        console.log("updated message for room:",roomID,roomChats.get(roomID));
         
 
         console.log("✅", roomChats);
@@ -315,6 +316,32 @@ io.on("connection", (socket) => {
 
         io.to(roomid).emit("player-guessed-correctly", {username, roomid});
         console.log("Player",username,"guessed correctly in room:",roomid);
+        const message=`${username} Guessed the Word Correctly`;
+        const colour=data.colour;
+        if(!roomChats.has(roomid)){
+            roomChats.set(roomid,[{from:username,msg:message,colour:colour}]);
+        }
+
+        const obj=roomChats.get(roomid);
+        obj.push({from:username,msg:message,colour:colour});
+        if(obj.length > MAX_HISTORY){
+            obj.shift(); 
+        }
+        roomChats.set(roomid,obj);
+         console.log("updated message for room:",roomid,roomChats.get(roomid));
+        
+
+        console.log("✅", roomChats);
+         try {
+            const plain = Object.fromEntries(roomChats);
+          
+            io.to(roomid).emit("send-message-map", plain);
+        } catch (err) {
+            console.error("Error serializing roomChats:", err);
+        }
+
+       
+        io.to(roomid).emit("receive-message", roomChats.get(roomid) || []);
     })
 
     socket.on("stop-timer",(roomid)=>{
@@ -324,6 +351,45 @@ io.on("connection", (socket) => {
             console.log(`Timer stopped for room: ${roomid}`);
         }
         io.to(roomid).emit("stopped-timer",(roomid));
+    })
+
+    socket.on("wrong-guess",(data)=>{
+        const roomID=data.roomID;
+        const username=data.username;
+        const colour=data.colour;
+        const guess=data.guess;
+        console.log("✅"+ guess);
+        const message=`${guess} was wrong`;
+
+        io.to(roomID).emit("player-guess-is-wrong",{username,roomID, guessedWord: guess});
+        console.log("player guess was wrong");
+
+        if(!roomChats.has(roomID)){
+            roomChats.set(roomID,[{from:username,msg:message,colour:colour}]);
+        }
+
+        const obj=roomChats.get(roomID);
+        obj.push({from:username,msg:message,colour:colour});
+        if(obj.length > MAX_HISTORY){
+            obj.shift(); 
+        }
+
+        roomChats.set(roomID,obj);
+        console.log("updated message for room:",roomID,roomChats.get(roomID));
+        
+
+        console.log("✅", roomChats);
+      
+        try {
+            const plain = Object.fromEntries(roomChats);
+          
+            io.to(roomID).emit("send-message-map", plain);
+        } catch (err) {
+            console.error("Error serializing roomChats:", err);
+        }
+
+       
+        io.to(roomID).emit("receive-message", roomChats.get(roomID) || []);
     })
 
  

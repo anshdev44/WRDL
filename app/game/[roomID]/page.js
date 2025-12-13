@@ -359,7 +359,7 @@ const page = ({ params }) => {
             return;
         }
         if (Array.isArray(roomChats)) {
-            const normalized = roomChats.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '' }));
+            const normalized = roomChats.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '', colour: m.colour }));
             setRoomMessages(normalized);
             return;
         }
@@ -367,7 +367,7 @@ const page = ({ params }) => {
             const obj = roomChats[params.roomID] || roomChats[params.roomId] || roomChats.roomID;
             console.log("Messages for this room (from map):", obj);
             if (Array.isArray(obj)) {
-                const normalized = obj.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '' }));
+                const normalized = obj.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '', colour: m.colour }));
                 setRoomMessages(normalized);
                 return;
             }
@@ -380,7 +380,8 @@ const page = ({ params }) => {
     const handleReceiveArray = (messages) => {
         console.log("Received broadcasted messages for room:", messages);
         if (Array.isArray(messages)) {
-            const normalized = messages.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '' }));
+            const normalized = messages.map(m => ({ from: m.from || m.username || 'Anonymous', text: m.text ?? m.msg ?? '' ,colour:m.colour}));
+            console.log(roomMessages);
             setRoomMessages(normalized);
         }
     };
@@ -411,18 +412,17 @@ const page = ({ params }) => {
            if(message.toLowerCase()===word.toLowerCase()){
             // toast.success();
             setguessedletters(word.split(""));
-            socket.emit("correct-guess",({roomID:params.roomID,username: playerinfo?.username}));
+            socket.emit("correct-guess",({roomID:params.roomID,username: playerinfo?.username,colour:"green"}));
             console.log("Correct guess sent:", message,params.roomID, playerinfo?.username);
            }
            else{
-            socket.emit("wrong-guess",({roomID:params.roomID,username: playerinfo?.username}));
+            socket.emit("wrong-guess",({roomID:params.roomID,username: playerinfo?.username,colour:"red",guess:message}));
             toast.info("Wrong Guess!");
             console.log("Wrong guess sent:", message,params.roomID, playerinfo?.username);
            }
         }
         else{
-
-            socket.emit("send-message",({message:message, roomID:params.roomID,username: playerinfo?.username} ));
+            socket.emit("send-message",({message:message, roomID:params.roomID,username: playerinfo?.username,colour:"transparent"} ));
         }
         console.log("Message sent:", message,params.roomID, playerinfo?.username);
         setMessage("");
@@ -458,6 +458,20 @@ const page = ({ params }) => {
         socket.off("stopped-timer")
       }
     }, [])
+
+    useEffect(() => {
+      socket.on("player-guess-is-wrong",(data)=>{
+        const roomid=data.roomID;
+        const username=data.username;
+
+        alert(`${username} gueessed wrong`);
+      })
+    
+      return () => {
+        socket.off("player-guess-is-wrong");
+      }
+    }, [])
+    
     
     
 
@@ -602,7 +616,7 @@ const page = ({ params }) => {
                                 roomMessages.map((m, i) => (
                                     <div key={i} className="mb-2 flex items-center  gap-3.5">
                                         <strong className="block">{m.from || 'Anonymous'}</strong>
-                                        <div className="text-sm text-white">{m.text}</div>
+                                        <div className={`text-sm text-white ${m.colour === 'green' ? 'bg-green-500' : m.colour === 'red' ? 'bg-red-500' : ''}`}>{m.text}</div>
                                     </div>
                                 ))
                             ) : (
