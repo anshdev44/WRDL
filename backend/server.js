@@ -1,440 +1,345 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
 
-
 const httpServer = createServer();
 const io = new Server(httpServer, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
-    },
+    cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-httpServer.listen(4000, () => {
-    console.log("✅ Server is listening on port 4000");
-});
+httpServer.listen(4000, () => console.log("✅ Server listening on port 4000"));
 
-const roomChats = new Map();
+// ─── State Maps ───────────────────────────────────────────────────────────────
+const roomChats         = new Map(); // roomID -> [{from, msg, colour}]
+const roomWord          = new Map(); // roomID -> word string
+const roomstarted       = new Map(); // roomID -> bool
+const roomTimerIntervals= new Map(); // roomID -> setInterval ID
+const roomRevealIntervals=new Map(); // roomID -> setInterval ID  (letter reveal)
+const roomRevealedIdx   = new Map(); // roomID -> Set of revealed indices
+const roomGuessOrder    = new Map(); // roomID -> [{username, email, points, position}]
+const roomHosts         = new Map(); // roomID -> host socket.id
+const socketMeta        = new Map(); // socket.id -> {roomID, email, username}
+
 const MAX_HISTORY = 50;
+const POINTS      = [20, 15, 10, 5]; // by position
+
 const wordList = [
-  "apple", "beach", "brain", "bread", "brush", 
-  "chair", "chest", "chord", "click", "clock", 
-  "cloud", "dance", "diary", "drink", "drive", 
-  "earth", "feast", "field", "fruit", "glass", 
-  "grape", "green", "ghost", "guide", "heart", 
-  "house", "human", "juice", "light", "lemon", 
-  "melon", "money", "music", "night", "ocean", 
-  "party", "piano", "pilot", "plane", "plant", 
-  "plate", "phone", "power", "quiet", "radio", 
-  "river", "robot", "scene", "scope", "score", 
-  "shape", "share", "shirt", "shoe", "smile", 
-  "snake", "space", "spoon", "star", "stone", 
-  "storm", "sugar", "table", "taste", "tiger", 
-  "toast", "touch", "tower", "track", "trade", 
-  "train", "truck", "uncle", "unity", "value", 
-  "video", "virus", "voice", "waste", "watch", 
-  "water", "whale", "white", "woman", "world", 
-  "write", "youth", "zebra"
+  "apple","beach","brain","bread","brush","chair","chest","chord","click","clock",
+  "cloud","dance","diary","drink","drive","earth","feast","field","fruit","glass",
+  "grape","green","ghost","guide","heart","house","human","juice","light","lemon",
+  "melon","money","music","night","ocean","party","piano","pilot","plane","plant",
+  "plate","phone","power","quiet","radio","river","robot","scene","scope","score",
+  "shape","share","shirt","smile","snake","space","spoon","stone","storm","sugar",
+  "table","taste","tiger","toast","touch","tower","track","trade","train","truck",
+  "uncle","unity","value","video","virus","voice","waste","watch","water","whale",
+  "white","woman","world","write","youth","zebra",
 ];
-const roomWord=new Map();
-const guessedLetters=new Map();
-const roomstarted=new Map();
-const roomTimers=new Map();
-const roomTimerIntervals=new Map();
 
-const chooserandomeword=()=>{
-    const randomIndex = Math.floor(Math.random() * wordList.length);
-    return wordList[randomIndex];
-}
+const pickWord = () => wordList[Math.floor(Math.random() * wordList.length)];
 
-io.on("connection", (socket) => {
-    console.log("✅ A user just connected", socket.id);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const pushChat = (roomID, entry) => {
+    if (!roomChats.has(roomID)) roomChats.set(roomID, []);
+    const arr = roomChats.get(roomID);
+    arr.push(entry);
+    if (arr.length > MAX_HISTORY) arr.shift();
+    io.to(roomID).emit("receive-message", arr);
+};
 
-    //leave room if socket automatically disconnects form the server
-    socket.on("disconnect", () => {
-        console.log("❌ A user just disconnected", socket.id);
-        const socketinroom = socket.rooms;
-        if (socketinroom.size > 0) {
-            const room = socket.rooms[0];
-            // socket.leave(room);
+const cleanupRoom = (roomID) => {
+    if (roomTimerIntervals.has(roomID)) { clearInterval(roomTimerIntervals.get(roomID)); roomTimerIntervals.delete(roomID); }
+    if (roomRevealIntervals.has(roomID)) { clearInterval(roomRevealIntervals.get(roomID)); roomRevealIntervals.delete(roomID); }
+    roomChats.delete(roomID);
+    roomWord.delete(roomID);
+    roomstarted.delete(roomID);
+    roomRevealedIdx.delete(roomID);
+    roomGuessOrder.delete(roomID);
+    roomHosts.delete(roomID);
+};
 
-            console.log(
-                "✅",
-                email,
-                "left the room with id" + room,
-                "upon disconnection"
-            );
-        }
-    });
-    socket.on("join-room", async (roomID, username, email) => {
-        // console.log(
-        //     `✅${username} is trying to join room with id ${roomID} and his email is ${email}`
-        // );
-        try {
-            const myHeaders = new Headers();
-            myHeaders.append("Content-Type", "application/json");
-
-            const raw = JSON.stringify({
-                roomId: roomID,
-                email: email,
-                username: username,
-            });
-
-            const requestOptions = {
-                method: "POST",
-                headers: myHeaders,
-                body: raw,
-                redirect: "follow",
-            };
-
-            const res = await fetch(
-                "http://localhost:3000/api/room/join",
-                requestOptions
-            );
-            if (res.status === 200) {
-                socket.join(roomID);
-                io.to(roomID).emit("user_joined", {
-                    user: username,
-                    message: "has joined the room",
-                });
-                socket.emit("joined-room", (roomID, username, email));
-            } else {
-                socket
-                    .to(roomID)
-                    .emit(username, "was unable to connect to the room");
-                // console.log(
-                //     username,
-                //     "tried to connect with room id",
-                //     roomID,
-                //     "but was unable to connect"
-                // );
-            }
-        } catch (err) {}
-    });
-    socket.on("leave-room", async (roomID, email) => {
-        console.log(
-            `❌ ${email} left room: ${roomID} with socket ID: ${socket.id}`
-        );
-
-        try {
-            const myHeaders = new Headers();
-            myHeaders.append("Content-Type", "application/json");
-
-            const raw = JSON.stringify({
-                roomId: roomID,
-                email: email,
-            });
-
-            const requestOptions = {
-                method: "POST",
-                headers: myHeaders,
-                body: raw,
-                redirect: "follow",
-            };
-
-            const res = await fetch(
-                "http://localhost:3000/api/room/leave",
-                requestOptions
-            );
-            const data = await res.json();
-
-            if (res.status === 200) {
-                socket.leave(roomID);
-                io.to(roomID).emit("player-left", {
-                    email,
-                    message: data.message,
-                });
-
-                if (
-                    data.message &&
-                    data.message.includes("empty room was deleted")
-                ) {
-                    //room deleted as it was empty
-                    io.in(roomID).emit("room-deleted", { reason: "empty" });
-                    io.in(roomID).socketsLeave(roomID);
-                    const obj=roomChats.get(roomID);
-                    if(obj){
-                      roomChats.delete(roomID);
-                    }
-                }
-            } else if (res.status === 201) {
-                //host left and room deleted
-                io.to(roomID).emit("room-deleted", { reason: "host-left" });
-                io.in(roomID).socketsLeave(roomID);
-                const obj=roomChats.get(roomID);
-                if(obj){
-                    roomChats.delete(roomID);
-                }
-            } else {
-                socket.emit("error-leaving-room", {
-                    error: data.error || "Some Error occured at our side",
-                    roomID,
-                    email,
-                });
-            }
-        } catch (error) {
-            console.error("Error processing leave-room:", error);
-            socket.emit("error-leaving-room", {
-                error: "Server error processing leave request",
-                roomID,
-                email,
-            });
-        }
-    });
-
-    socket.on("create-room", (roomID, username) => {
-        socket.join(roomID);
-        console.log(
-            `✅ ${username} create room: ${roomID} with socket ID: ${socket.id}`
-        );
-        // socket.to(roomID).emit(username, "has joined the room");
-    })
-
-    socket.on("BUZZED", (payload) => {
-       
-        const roomID = payload && typeof payload === "object" ? payload.roomID : payload;
-        const username = payload && typeof payload === "object" ? payload.username : undefined;
-        const email = payload && typeof payload === "object" ? payload.email : undefined;
-
-        // console.log("BUZZED event received from", socket.id, "payload:", payload);
-
-        if (roomID) {
-           
-            console.log("Emitting BUZZES to room:", roomID, { id: socket.id, username, email });
-            io.to(roomID).emit("BUZZES", { id: socket.id, username, email });
-        } else {
-         
-            io.emit("BUZZED", { from: socket.id, username, email });
-        }
-    });
-
-    socket.on("start-game",(roomid)=>{
-       if(!roomid){
-        console.error("start-game event missing roomID");
-        io.emit("error-starting-game",{ error: "Missing roomID"});
-        return;
-       }
-       roomstarted.set(roomid,true);
-       console.log("roomtarted map is updated",roomstarted);
-       io.to(roomid).emit("game-started",{message:"Game is starting"})
-       console.log("Game started in room:",roomid)
-    })
-
-    socket.on("send-message",(data)=>{
-        const message=data.message
-        const roomID=data.roomID;
-        const username=data.username;
-        const colour=data.colour;
-        console.log("Received message to send:", message, roomID, username);
-        if(!roomID || !message || !username || !colour){
-            socket.emit("error-sending-message",{error:"Missing data to send message"});
-            return;
-        }
-
-        if(!roomChats.has(roomID)){
-            roomChats.set(roomID,[{from:username,msg:message,colour:colour}]);
-        }
-
-        const obj=roomChats.get(roomID);
-        obj.push({from:username,msg:message,colour:colour});
-        if(obj.length > MAX_HISTORY){
-            obj.shift(); 
-        }
-        roomChats.set(roomID,obj);
-        console.log("updated message for room:",roomID,roomChats.get(roomID));
-        
-
-        console.log("✅", roomChats);
-      
-        try {
-            const plain = Object.fromEntries(roomChats);
-          
-            io.to(roomID).emit("send-message-map", plain);
-        } catch (err) {
-            console.error("Error serializing roomChats:", err);
-        }
-
-       
-        io.to(roomID).emit("receive-message", roomChats.get(roomID) || []);
-
-    });
-
-    socket.on("send-messages-backend", (roomid)=>{
-        try {
-            const plain = Object.fromEntries(roomChats);
-          
-            io.to(roomid).emit("send-message-map", plain);
-        } catch (err) {
-            console.error("Error serializing roomChats:", err);
-        }
-        io.to(roomid).emit("receive-message", roomChats.get(roomid));
-        
-    });
-    socket.on("send-word",(roomid)=>{
-        const word=chooserandomeword();
-        io.to(roomid).emit("receive-word",word);
-        roomWord.set(roomid,word);
-        guessedLetters.set(roomid,[]);
-        console.log("roomword map is updated",roomWord);
-        console.log("guessed letters map is updated",{guessedLetters,roomWord});
-        console.log("Sent word",word,"to room",roomid);
-    })
-
-    socket.on("start-timer",(roomid)=>{
-        // Clear any existing timer for this room
-        if(roomTimerIntervals.has(roomid)){
-            clearInterval(roomTimerIntervals.get(roomid));
-            roomTimerIntervals.delete(roomid);
-        }
-        
-       
-        let minutes = 2;
-        let seconds = 0;
-        let obj=[{
-            minutes: minutes,
-            seconds: seconds
-        }]
-        roomTimers.set(roomid,obj);
-        io.to(roomid).emit("timer-started",obj);
-        
-      
-        startTimer(roomid, minutes, seconds);
-    })
-
-    socket.on("is-game-started",(roomid)=>{
-        console.log("is-game-started event received for room:",roomid);
-        const started=roomstarted.get(roomid);
-        // console.log("is-game-started checked for room:",roomid,"->",started);
-       if(started){
-        socket.emit("game-has-started");
-       }
-    });
-
-    socket.on("correct-guess",(data)=>{
-        const roomid=data.roomID;
-        const username=data.username;
-
-        io.to(roomid).emit("player-guessed-correctly", {username, roomid});
-        console.log("Player",username,"guessed correctly in room:",roomid);
-        const message=`${username} Guessed the Word Correctly`;
-        const colour=data.colour;
-        if(!roomChats.has(roomid)){
-            roomChats.set(roomid,[{from:username,msg:message,colour:colour}]);
-        }
-
-        const obj=roomChats.get(roomid);
-        obj.push({from:username,msg:message,colour:colour});
-        if(obj.length > MAX_HISTORY){
-            obj.shift(); 
-        }
-        roomChats.set(roomid,obj);
-         console.log("updated message for room:",roomid,roomChats.get(roomid));
-        
-
-        console.log("✅", roomChats);
-         try {
-            const plain = Object.fromEntries(roomChats);
-          
-            io.to(roomid).emit("send-message-map", plain);
-        } catch (err) {
-            console.error("Error serializing roomChats:", err);
-        }
-
-       
-        io.to(roomid).emit("receive-message", roomChats.get(roomid) || []);
-    })
-
-    socket.on("stop-timer",(roomid)=>{
-        if(roomTimerIntervals.has(roomid)){
-            clearInterval(roomTimerIntervals.get(roomid));
-            roomTimerIntervals.delete(roomid);
-            console.log(`Timer stopped for room: ${roomid}`);
-        }
-        io.to(roomid).emit("stopped-timer",(roomid));
-    })
-
-    socket.on("wrong-guess",(data)=>{
-        const roomID=data.roomID;
-        const username=data.username;
-        const colour=data.colour;
-        const guess=data.guess;
-        console.log("✅"+ guess);
-        const message=`${guess} was wrong`;
-
-        io.to(roomID).emit("player-guess-is-wrong",{username,roomID, guessedWord: guess});
-        console.log("player guess was wrong");
-
-        if(!roomChats.has(roomID)){
-            roomChats.set(roomID,[{from:username,msg:message,colour:colour}]);
-        }
-
-        const obj=roomChats.get(roomID);
-        obj.push({from:username,msg:message,colour:colour});
-        if(obj.length > MAX_HISTORY){
-            obj.shift(); 
-        }
-
-        roomChats.set(roomID,obj);
-        console.log("updated message for room:",roomID,roomChats.get(roomID));
-        
-
-        console.log("✅", roomChats);
-      
-        try {
-            const plain = Object.fromEntries(roomChats);
-          
-            io.to(roomID).emit("send-message-map", plain);
-        } catch (err) {
-            console.error("Error serializing roomChats:", err);
-        }
-
-       
-        io.to(roomID).emit("receive-message", roomChats.get(roomID) || []);
-    })
-
- 
-})
-
-const startTimer=(roomid,minutes,seconds)=>{
-    // Clear any existing timer for this room
-    if(roomTimerIntervals.has(roomid)){
-        clearInterval(roomTimerIntervals.get(roomid));
-    }
+// ─── Letter Reveal Schedule ───────────────────────────────────────────────────
+// Interval = floor(120 / wordLength) seconds. Last letter never revealed until timer ends.
+const startLetterReveal = (roomID, word) => {
+    if (roomRevealIntervals.has(roomID)) { clearInterval(roomRevealIntervals.get(roomID)); }
     
-    const timerInterval=setInterval(()=>{
-        if (!roomTimerIntervals.has(roomid)) {
+    const intervalSec = Math.floor(120 / word.length); // e.g. 5-letter word → 24s
+    roomRevealedIdx.set(roomID, new Set());
+
+    const interval = setInterval(() => {
+        const revealed = roomRevealedIdx.get(roomID);
+        if (!revealed) return;
+
+        // Collect unrevealed indices EXCLUDING the last letter
+        const unrevealed = [];
+        for (let i = 0; i < word.length - 1; i++) {
+            if (!revealed.has(i)) unrevealed.push(i);
+        }
+
+        if (unrevealed.length === 0) {
+            // All non-last letters already revealed — stop
+            clearInterval(interval);
+            roomRevealIntervals.delete(roomID);
             return;
         }
-        if(seconds === 0){
-            if(minutes === 0){
-                clearInterval(timerInterval);
-                roomTimerIntervals.delete(roomid);
-                console.log(`Timer finished for room: ${roomid}`);
+
+        const idx = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+        revealed.add(idx);
+        io.to(roomID).emit("reveal-letter", { index: idx, letter: word[idx] });
+        console.log(`Revealed letter [${idx}]='${word[idx]}' in room ${roomID}`);
+    }, intervalSec * 1000);
+
+    roomRevealIntervals.set(roomID, interval);
+};
+
+// ─── Timer ────────────────────────────────────────────────────────────────────
+const startTimer = (roomID, minutes, seconds) => {
+    if (roomTimerIntervals.has(roomID)) clearInterval(roomTimerIntervals.get(roomID));
+
+    const interval = setInterval(() => {
+        if (!roomTimerIntervals.has(roomID)) return;
+
+        if (seconds === 0) {
+            if (minutes === 0) {
+                // ── Time's up ──
+                clearInterval(interval);
+                roomTimerIntervals.delete(roomID);
+
+                // Stop letter reveal
+                if (roomRevealIntervals.has(roomID)) {
+                    clearInterval(roomRevealIntervals.get(roomID));
+                    roomRevealIntervals.delete(roomID);
+                }
+
+                // Reveal remaining letters (including the last one)
+                const word = roomWord.get(roomID) || "";
+                const revealed = roomRevealedIdx.get(roomID) || new Set();
+                const finalReveal = {};
+                for (let i = 0; i < word.length; i++) {
+                    if (!revealed.has(i)) finalReveal[i] = word[i];
+                }
+                if (Object.keys(finalReveal).length > 0) {
+                    io.to(roomID).emit("reveal-remaining", finalReveal);
+                }
+
+                // Emit final scores
+                const guessOrder = roomGuessOrder.get(roomID) || [];
+                io.to(roomID).emit("timer-ended", { roomID, word, scores: guessOrder });
+
+                pushChat(roomID, { from: "🏁 Round Over", msg: `The word was: "${word}"`, colour: "gold" });
+
+                // Clean up game state but keep room alive for next round
+                roomstarted.delete(roomID);
+                roomWord.delete(roomID);
+                roomRevealedIdx.delete(roomID);
+                roomGuessOrder.delete(roomID);
+                console.log(` Timer ended for room: ${roomID}`);
                 return;
             }
             minutes--;
             seconds = 59;
-        }
-        else{
+        } else {
             seconds--;
         }
-        let obj=[{
-            minutes: minutes,
-            seconds: seconds
-        }]
-        roomTimers.set(roomid,obj);
-        // console.log(`Time left for roomid:${roomid}-> ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
-        io.to(roomid).emit("timer-update", minutes, seconds);
-    },1000);
-    // io.to(roomid).emit("timer-ended",(roomid=>{
-    //     clearInterval(timerInterval);
-    //     roomTimerIntervals.delete(roomid);
-    //     roomstarted.delete(roomid);
-    //     guessedLetters.delete(roomid);
-    //     roomWord.delete(roomid);
-    //     roomTimers.delete(roomid);
-    //     console.log(`Timer ended for room: ${roomid}`);
-    // }));
-    // Store the interval so we can clear it if needed
-    roomTimerIntervals.set(roomid, timerInterval);
-}
+
+        io.to(roomID).emit("timer-update", minutes, seconds);
+    }, 1000);
+
+    roomTimerIntervals.set(roomID, interval);
+};
+
+// ─── Socket Connections ───────────────────────────────────────────────────────
+io.on("connection", (socket) => {
+    console.log("✅ Connected:", socket.id);
+
+    socket.on("disconnect", () => {
+        console.log("❌ Disconnected:", socket.id);
+        socketMeta.delete(socket.id);
+    });
+
+    // ── Create Room ──
+    socket.on("create-room", (roomID, username, email) => {
+        socket.join(roomID);
+        roomHosts.set(roomID, socket.id);
+        socketMeta.set(socket.id, { roomID, email, username });
+        console.log(`✅ ${username} created room ${roomID}`);
+    });
+
+    // ── Join Room (socket-only, DB handled by frontend HTTP call) ──
+    socket.on("join-room", (roomID, username, email) => {
+        socket.join(roomID);
+        socketMeta.set(socket.id, { roomID, email, username });
+        io.to(roomID).emit("user_joined", { user: username, message: "has joined the room" });
+        socket.emit("joined-room", { roomID, username, email });
+        console.log(`✅ ${username} joined socket room ${roomID}`);
+    });
+
+    // ── Leave Room ──
+    socket.on("leave-room", async (roomID, email) => {
+        try {
+            const res = await fetch("http://localhost:3000/api/room/leave", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ roomId: roomID, email }),
+            });
+            const data = await res.json();
+
+            if (res.status === 200) {
+                socket.leave(roomID);
+                socketMeta.delete(socket.id);
+                if (data.message?.includes("empty room was deleted")) {
+                    io.in(roomID).emit("room-deleted", { reason: "empty" });
+                    io.in(roomID).socketsLeave(roomID);
+                    cleanupRoom(roomID);
+                } else {
+                    io.to(roomID).emit("player-left", { email, message: data.message });
+                }
+            } else if (res.status === 201) {
+                socket.leave(roomID);
+                socketMeta.delete(socket.id);
+                io.to(roomID).emit("room-deleted", { reason: "host-left" });
+                io.in(roomID).socketsLeave(roomID);
+                cleanupRoom(roomID);
+            } else {
+                socket.emit("error-leaving-room", { error: data.error, roomID, email });
+            }
+        } catch (err) {
+            console.error("leave-room error:", err);
+            socket.emit("error-leaving-room", { error: "Server error", roomID, email });
+        }
+    });
+
+    // ── Buzz Host ──
+    socket.on("BUZZED", (payload) => {
+        const roomID   = payload?.roomID;
+        const username = payload?.username;
+        const email    = payload?.email;
+        if (!roomID) return;
+        const hostSocketId = roomHosts.get(roomID);
+        if (hostSocketId) {
+            console.log(`🔔 ${username} buzzed host in room ${roomID}`);
+            io.to(hostSocketId).emit("BUZZES", { id: socket.id, username, email });
+        }
+    });
+
+    // ── Start Game ──
+    socket.on("start-game", (roomid, username) => {
+        if (!roomid) return;
+        roomstarted.set(roomid, true);
+        roomGuessOrder.set(roomid, []);
+        io.to(roomid).emit("game-started", { message: "Game is starting", startedBy: username || "Host" });
+        console.log(`🎮 Game started in room ${roomid} by ${username}`);
+    });
+
+    socket.on("is-game-started", (roomid) => {
+        if (roomstarted.get(roomid)) socket.emit("game-has-started");
+    });
+
+    // ── Send Word + start letter reveal ──
+    socket.on("send-word", (roomid) => {
+        const word = pickWord();
+        roomWord.set(roomid, word);
+        roomGuessOrder.set(roomid, []);
+        io.to(roomid).emit("receive-word", word);
+        startLetterReveal(roomid, word);
+        console.log(`📝 Word "${word}" sent to room ${roomid}`);
+    });
+
+    // ── Start Timer ──
+    socket.on("start-timer", (roomid) => {
+        if (roomTimerIntervals.has(roomid)) {
+            clearInterval(roomTimerIntervals.get(roomid));
+            roomTimerIntervals.delete(roomid);
+        }
+        const minutes = 2, seconds = 0;
+        io.to(roomid).emit("timer-started", [{ minutes, seconds }]);
+        startTimer(roomid, minutes, seconds);
+    });
+
+    // ── Stop Timer (someone guessed correctly — host stops it) ──
+    socket.on("stop-timer", (roomid) => {
+        if (roomTimerIntervals.has(roomid)) {
+            clearInterval(roomTimerIntervals.get(roomid));
+            roomTimerIntervals.delete(roomid);
+        }
+        if (roomRevealIntervals.has(roomid)) {
+            clearInterval(roomRevealIntervals.get(roomid));
+            roomRevealIntervals.delete(roomid);
+        }
+        io.to(roomid).emit("stopped-timer", roomid);
+    });
+
+    // ── Chat ──
+    socket.on("send-message", (data) => {
+        const { message, roomID, username, colour } = data;
+        if (!roomID || !message || !username) return;
+        pushChat(roomID, { from: username, msg: message, colour: colour || "transparent" });
+    });
+
+    socket.on("send-messages-backend", (roomid) => {
+        socket.emit("receive-message", roomChats.get(roomid) || []);
+    });
+
+    // ── Correct Guess ──
+    socket.on("correct-guess", (data) => {
+        const { roomID, username, email } = data;
+
+        const order = roomGuessOrder.get(roomID) || [];
+        // Prevent double-counting the same player
+        if (order.find(p => p.email === email)) return;
+
+        const position = order.length;            // 0-based
+        const points   = POINTS[position] ?? 0;
+        order.push({ username, email, points, position: position + 1 });
+        roomGuessOrder.set(roomID, order);
+
+        io.to(roomID).emit("player-guessed-correctly", {
+            username, roomID, points, position: position + 1
+        });
+
+        pushChat(roomID, {
+            from: "🎉 System",
+            msg: `${username} guessed the word correctly! +${points} pts (Position #${position + 1})`,
+            colour: "green",
+        });
+
+        console.log(`✅ ${username} guessed correctly in room ${roomID} — Position #${position + 1}, ${points} pts`);
+
+        // Check if everyone has guessed the word
+        const roomSize = io.sockets.adapter.rooms.get(roomID)?.size || 0;
+        if (order.length >= roomSize && roomSize > 0) {
+            if (roomTimerIntervals.has(roomID)) {
+                clearInterval(roomTimerIntervals.get(roomID));
+                roomTimerIntervals.delete(roomID);
+            }
+            if (roomRevealIntervals.has(roomID)) {
+                clearInterval(roomRevealIntervals.get(roomID));
+                roomRevealIntervals.delete(roomID);
+            }
+
+            const word = roomWord.get(roomID) || "";
+            const revealed = roomRevealedIdx.get(roomID) || new Set();
+            const finalReveal = {};
+            for (let i = 0; i < word.length; i++) {
+                if (!revealed.has(i)) finalReveal[i] = word[i];
+            }
+            if (Object.keys(finalReveal).length > 0) {
+                io.to(roomID).emit("reveal-remaining", finalReveal);
+            }
+
+            io.to(roomID).emit("timer-ended", { roomID, word, scores: order });
+            pushChat(roomID, { from: "🏁 Round Over", msg: `Everyone guessed the word! The word was: "${word}"`, colour: "gold" });
+
+            roomstarted.delete(roomID);
+            roomWord.delete(roomID);
+            roomRevealedIdx.delete(roomID);
+            roomGuessOrder.delete(roomID);
+            console.log(`⏰ Round ended early for room: ${roomID} because everyone guessed`);
+        }
+    });
+
+    // ── Wrong Guess ──
+    socket.on("wrong-guess", (data) => {
+        const { roomID, username, colour, guess } = data;
+        io.to(roomID).emit("player-guess-is-wrong", { username, roomID, guessedWord: guess });
+        pushChat(roomID, { from: username, msg: `"${guess}" — wrong guess!`, colour: colour || "red" });
+    });
+});
