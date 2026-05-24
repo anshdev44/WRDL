@@ -131,15 +131,3 @@ Ensure the records conform to the Mongoose schema structure:
 
 ---
 
-## Deployment Guidelines
-
-When deploying this project to production:
-
-1. **Frontend Hosting (e.g., Vercel, Netlify, or Railway)**:
-   * Build the production Next.js bundle using `npm run build`.
-   * Configure environment variables on the host platform, setting `NEXTAUTH_URL` and `NEXT_PUBLIC_SOCKET_URL` to match your deployed domain names.
-
-2. **Backend Hosting (e.g., Render, Railway, Heroku, or VPS)**:
-   * Run the Socket.io service using Node.js (`node backend/server.js`).
-   * Ensure that the host platform allows persistent WebSocket connections.
-   * Provide the `APP_URL` environment variable matching the frontend domain name, enabling the backend to fetch words and post lifecycle updates successfully.
