@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
 
+dotenv.config();
 dotenv.config({ path: "../.env" });
 
 const httpServer = createServer();
@@ -11,11 +12,14 @@ const io = new Server(httpServer, {
 });
 
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
-const aiModel = genAI ? genAI.getGenerativeModel({ model: "gemini-2.5-flash" }) : null;
+const ai = genAI ? genAI.getGenerativeModel({ model: "gemini-2.5-flash" }) : null;
 
-if (!aiModel) console.warn("️ Gemini AI is disabled. GEMINI_API_KEY not found in ../.env");
+if (!ai) console.warn("️ Gemini AI is disabled. GEMINI_API_KEY not found in env");
 
-httpServer.listen(4000, () => console.log(" Server listening on port 4000"));
+const PORT = process.env.PORT || 4000;
+const APP_URL = process.env.APP_URL || "http://localhost:3000";
+
+httpServer.listen(PORT, () => console.log(` Server listening on port ${PORT}`));
 
 const roomChats         = new Map(); 
 const roomWord          = new Map(); 
@@ -162,7 +166,7 @@ io.on("connection", (socket) => {
 
     socket.on("leave-room", async (roomID, email) => {
         try {
-            const res = await fetch("http://localhost:3000/api/room/leave", {
+            const res = await fetch(`${APP_URL}/api/room/leave`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ roomId: roomID, email }),
@@ -220,7 +224,7 @@ io.on("connection", (socket) => {
 
     socket.on("send-word", async (roomid) => {
         try {
-            const res = await fetch("http://localhost:3000/api/word/random");
+            const res = await fetch(`${APP_URL}/api/word/random`);
             const data = await res.json();
             
             const word = data.word || "pizza";
@@ -231,12 +235,12 @@ io.on("connection", (socket) => {
             startLetterReveal(roomid, word);
             console.log(` Word "${word}" sent to room ${roomid} (from DB)`);
 
-            if (aiModel) {
+            if (ai) {
                 const sendGeneralHint = async () => {
                     if (!roomWord.has(roomid)) return;
                     try {
                         const prompt = `The word is "${word}". Provide a very short, fun, vague general hint for players guessing this word. It must be less than 15 words. Do NOT say the word itself or use any emojis. and please use simple language like what it is used for or what does it do not rhymes with or other things`;
-                        const result = await aiModel.generateContent(prompt);
+                        const result = await ai.generateContent(prompt);
                         let hintText = result.response.text().trim();
                         hintText = hintText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
                         pushChat(roomid, { from: "wrdl-bot", msg: `Hint: ${hintText}`, colour: "cyan" });
@@ -384,14 +388,14 @@ io.on("connection", (socket) => {
             return;
         }
 
-        if (!aiModel) {
+        if (!ai) {
             socket.emit("receive-special-hint", { error: "AI hints are not configured on the server." });
             return;
         }
 
         try {
             const prompt = `The word is "${word}". Provide a close, specific hint for a player who paid points for it. Make it very helpful but do NOT say the actual word. Keep it under 15 words. Do NOT use any emojis.`;
-            const result = await aiModel.generateContent(prompt);
+            const result = await ai.generateContent(prompt);
             let hintText = result.response.text().trim();
            
             hintText = hintText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');

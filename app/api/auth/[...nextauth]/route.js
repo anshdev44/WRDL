@@ -1,4 +1,3 @@
-"use server";
 import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import connectDB from "../../../db/connect.js";
@@ -6,9 +5,7 @@ import connectDB from "../../../db/connect.js";
 import User from "../../../models/user";
 import GoogleProvider from "next-auth/providers/google";
 
-await connectDB();
-
-const handler = NextAuth({
+export const authOptions = {
   providers: [
     GitHubProvider({
       clientId: process.env.GITHUB_ID,
@@ -22,6 +19,7 @@ const handler = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account }) {
+      await connectDB();
       const isAllowedToSignIn = true;
       const email = user.email;
       // console.log(email);
@@ -44,7 +42,9 @@ const handler = NextAuth({
       return isAllowedToSignIn;
     },
   }
-});
+};
+
+const handler = NextAuth(authOptions);
 
 
 export { handler as GET, handler as POST };

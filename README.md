@@ -1,86 +1,145 @@
-# WRDL 
+# WRDL
 
-A real-time, multiplayer word-guessing game built with **Next.js**, **Socket.io**, **MongoDB**, and **Google Gemini AI**. Players join rooms, compete to guess a hidden word as its letters are progressively revealed, and can utilize AI-generated hints to gain an edge.
+WRDL is a real-time, multiplayer word-guessing game built on Next.js, Socket.io, MongoDB, and the Google Gemini AI platform. Players join synced game lobbies, compete to identify a hidden word as letters are progressively revealed, and leverage AI-generated clues to gain a competitive advantage.
 
-##  Features
+---
 
-- **Real-Time Multiplayer:** Instant socket-based synchronization for game state, live chats, and timer syncing.
-- **Dynamic Scoring System:** First to guess gets 20 pts, subsequent guessers get 15, 10, and 5 pts. Incorrect guesses incur a -10 point penalty.
-- **AI-Powered Hints (Gemini 2.5 Flash):**
-  - **General Hints:** The AI automatically drops a fun, vague hint in the public chat box every 30 seconds.
-  - **Specialized Hints:** Players can spend 10 points to get a highly specific, private hint delivered directly to their chatbox.
-- **Host Controls:** Only the room host can start rounds, advancing the game when everyone is ready.
-- **Progressive Letter Reveal:** Letters are automatically revealed one-by-one over a 2-minute timer depending on the length of the word.
-- **Database Driven:** Words are fetched randomly from a MongoDB collection, making it easy to scale or categorize the dictionary.
+## Key Features
 
-##  Tech Stack
+1. **Real-Time Multiplayer Synchronicity**: Utilizing Socket.io to manage and propagate game state changes, live chat messages, and clock synchronization across all active players in a room.
+2. **Dynamic Placement Scoring**: Points are distributed according to guess speed and accuracy. The first player to guess correctly receives 20 points, with subsequent guessers obtaining 15, 10, and 5 points. Incorrect guesses deduct 10 points.
+3. **AI Clue Engine (Gemini 2.5 Flash)**:
+   * **Public General Clues**: The engine automatically provides a vague, creative clue in the public chat area every 30 seconds.
+   * **Private Specialized Clues**: Players can spend 10 points to request a highly specific, targeted clue delivered exclusively to their own interface.
+4. **Host Orchestration**: Rooms are managed by their creators (hosts), who possess administrative control to initialize game rounds when players are ready.
+5. **Incremental Character Reveal**: Words are progressively exposed letter-by-letter over a two-minute round duration, calibrated based on the target word's length.
+6. **Persistent Database Integration**: Words are dynamically fetched from a MongoDB cluster, supporting dictionary scaling and room lifecycle persistence.
 
-- **Frontend:** Next.js (App Router), React, Tailwind CSS
-- **Backend:** Node.js, Socket.io, Express
-- **Database:** MongoDB, Mongoose
-- **AI Integration:** `@google/generative-ai` (Gemini API)
+---
 
-##  Getting Started
+## Technical Architecture
+
+* **Frontend Client**: Next.js (App Router), React, Tailwind CSS, Framer Motion, and GSAP.
+* **Backend Server**: Node.js, Express, Socket.io.
+* **Database Layer**: MongoDB via Mongoose ODM.
+* **Artificial Intelligence**: Google Generative AI Node.js SDK (@google/generative-ai).
+* **Authentication**: NextAuth.js (supporting Google and GitHub OAuth providers).
+
+---
+
+## Project Directory Layout
+
+```
+.
+├── app/                  # Next.js frontend pages, API routes, and components
+│   ├── action/           # Server Actions executing database transactions
+│   ├── api/              # Route handlers (NextAuth, room management, random word fetch)
+│   ├── components/       # Shared UI modules (Navigation, Game Rules overlay)
+│   ├── db/               # MongoDB client instantiation and connection utility
+│   ├── game/[roomID]/    # Client-side dynamic route for real-time game lobby and arena
+│   └── models/           # Mongoose schemas (User, Room, Word)
+├── backend/              # Node.js Socket.io real-time coordination server
+└── public/               # Static assets, icons, and logo assets
+```
+
+---
+
+## Installation and Configuration
 
 ### 1. Prerequisites
-- Node.js (v18+)
-- A MongoDB cluster (or local instance)
-- A Google Gemini API Key
+Ensure the following packages are installed on your host system:
+* Node.js (version 18.0.0 or higher)
+* A running MongoDB instance (or MongoDB Atlas Cloud cluster)
+* A valid Google Gemini API Key
+* OAuth Credentials for Google and GitHub (obtained via the respective developer consoles)
 
-### 2. Environment Variables
-Create a `.env` file in the root directory and add the following keys:
+### 2. Environment Variables Configuration
+Configure a `.env` file in the root workspace directory. You can copy the template provided in `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Ensure the following variables are defined:
 
 ```env
+# Database Credentials
 MONGODB_URI=your_mongodb_connection_string
-GEMINI_API_KEY=your_gemini_api_key
 
-# NextAuth Configuration
+# NextAuth Authentication Configuration
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_nextauth_secret
+NEXTAUTH_SECRET=your_cryptographic_nextauth_secret
+
+# OAuth Client Credentials
 GITHUB_ID=your_github_client_id
 GITHUB_SECRET=your_github_client_secret
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# AI Platform Keys
+GEMINI_API_KEY=your_google_gemini_api_key
+
+# Network and Deployment Configuration
+PORT=4000
+APP_URL=http://localhost:3000
+NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 ```
 
-### 3. Installation
-
-Install dependencies for both the frontend (root) and the backend:
+### 3. Dependency Installation
+Initialize packages for both the Next.js frontend application and the Express/Socket.io backend server:
 
 ```bash
-# Install frontend dependencies
+# Install root (Next.js frontend) packages
 npm install
 
-# Install backend dependencies
+# Install socket server packages
 cd backend
 npm install
 cd ..
 ```
 
-### 4. Running the Application
+---
 
-You will need to run both the Next.js server and the Socket.io backend server simultaneously.
+## Local Development Execution
 
-**Terminal 1 (Frontend):**
+To test the application locally, start both the Next.js frontend and the Socket.io backend concurrently.
+
+### Command Terminal 1 (Next.js Frontend)
+From the root workspace directory:
 ```bash
 npm run dev
 ```
+The client-side interface will run at `http://localhost:3000`.
 
-**Terminal 2 (Backend):**
+### Command Terminal 2 (Socket.io Backend)
+From the root workspace directory:
 ```bash
 cd backend
 node server.js
 ```
+The socket server will bind to the port defined in your environment configurations (default: `4000`).
 
-### 5. Seeding the Database
-Before playing your first game, you need to populate the database with words. 
-You need to manually add words to the database in future we will be adding a feature where 
-the words are genrated randomly
+---
 
-##  How to Play
+## Database Initialization (Seeding)
+To play the game, the Mongoose `Word` collection must contain guessable words. You can add entries to the database via standard MongoDB tools or custom scripts. 
 
-1. Log in using Google or GitHub.
-2. Create a new room or join an existing one using a Room ID.
-3. Once players are in, the Host clicks **Start Game**.
-4. Type your guesses into the chatbox. Correct guesses lock your chat and award points based on your placement. Wrong guesses cost 10 points.
-5. Stuck? Use the **Specialized Hint** button to spend 10 points for a private AI clue!
+Ensure the records conform to the Mongoose schema structure:
+* `word` (String, required, unique, lowercase, trimmed)
+* `length` (Number, required)
+* `category` (String, default: "general")
+
+---
+
+## Deployment Guidelines
+
+When deploying this project to production:
+
+1. **Frontend Hosting (e.g., Vercel, Netlify, or Railway)**:
+   * Build the production Next.js bundle using `npm run build`.
+   * Configure environment variables on the host platform, setting `NEXTAUTH_URL` and `NEXT_PUBLIC_SOCKET_URL` to match your deployed domain names.
+
+2. **Backend Hosting (e.g., Render, Railway, Heroku, or VPS)**:
+   * Run the Socket.io service using Node.js (`node backend/server.js`).
+   * Ensure that the host platform allows persistent WebSocket connections.
+   * Provide the `APP_URL` environment variable matching the frontend domain name, enabling the backend to fetch words and post lifecycle updates successfully.
