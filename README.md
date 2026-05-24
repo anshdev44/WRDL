@@ -121,13 +121,49 @@ The socket server will bind to the port defined in your environment configuratio
 
 ---
 
-## Database Initialization (Seeding)
-To play the game, the Mongoose `Word` collection must contain guessable words. You can add entries to the database via standard MongoDB tools or custom scripts. 
+## Word Database
 
-Ensure the records conform to the Mongoose schema structure:
-* `word` (String, required, unique, lowercase, trimmed)
-* `length` (Number, required)
-* `category` (String, default: "general")
+The game pulls words from a live MongoDB `words` collection. Each round, the server calls `/api/word/random`, which uses MongoDB's `$sample` aggregation to select a random entry.
+
+### Schema (`Word` model)
+
+| Field      | Type     | Constraints                          |
+|------------|----------|--------------------------------------|
+| `word`     | String   | Required, unique, lowercase, trimmed |
+| `length`   | Number   | Required                             |
+| `category` | String   | Default: `"general"`                 |
+
+### Current Words in Database
+
+The collection currently contains the following 5-letter words (category: **general**):
+
+| Word       | Length | Category |
+|------------|--------|----------|
+| `apple`    | 5      | general  |
+| `beach`    | 5      | general  |
+| `brain`    | 5      | general  |
+| `bread`    | 5      | general  |
+
+> **Note:** You can add more words directly via MongoDB Compass, `mongosh`, or a custom seed script. All entries must conform to the schema above.
 
 ---
 
+## Future Plans & Roadmap
+
+### 🎲 Random Word Generation (Coming Soon)
+The highest-priority upcoming feature is **automated random word generation**, which will eliminate the need for manual word seeding:
+
+- **AI-Powered Word Generation** — Use the Gemini AI engine to dynamically generate valid, category-appropriate words on demand, removing the dependency on a pre-populated word list.
+- **Difficulty Tiers** — Generate words filtered by difficulty level (easy: 4–5 letters, medium: 6–7 letters, hard: 8+ letters) to support varied gameplay.
+- **Category-Based Generation** — Automatically produce words across themed categories (e.g., animals, food, technology, sports) for themed game rounds.
+- **Dictionary Validation** — Validate generated words against a dictionary API to ensure all words are real and guessable.
+- **Bulk Seeding Utility** — Provide a CLI tool or admin endpoint to auto-populate the database with hundreds of generated words in one command.
+
+### Other Planned Features
+- **Leaderboard System** — Persistent player rankings and statistics tracked across sessions.
+- **Custom Room Settings** — Allow hosts to configure round duration, word length, point values, and hint frequency.
+- **Word Categories in Lobby** — Let hosts select a word category before starting a round.
+- **Spectator Mode** — Allow users to watch an active game without participating.
+- **Mobile-Responsive UI Polish** — Optimized layouts and touch interactions for mobile gameplay.
+
+---
